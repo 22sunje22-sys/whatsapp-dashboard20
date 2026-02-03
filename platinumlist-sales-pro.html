@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Messages Analysis Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --storm: #0A181C;
+            --monday: #79E2FF;
+            --day: #C7F88A;
+            --suede: #00A5D3;
+            --white: #FFFFFF;
+            --gray-500: #adb5bd;
+            --gray-600: #6c757d;
+            --hot: #FF6B6B;
+            --warm: #FFD93D;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--storm); color: var(--white); min-height: 100vh; }
+
+        /* LOGIN SCREEN */
+        .login-screen {
+            position: fixed; inset: 0; background: var(--storm);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10000;
+        }
+        .login-screen.hidden { display: none; }
+        .login-box {
+            background: rgba(121,226,255,0.05);
+            border: 2px solid rgba(121,226,255,0.2);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+        }
+        .login-logo {
+            width: 60px; height: 60px;
+            background: var(--monday);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; color: var(--storm); font-size: 28px;
+            margin: 0 auto 20px;
+        }
+        .login-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+        .login-sub { font-size: 12px; color: var(--gray-600); margin-bottom: 24px; }
+        .login-input {
+            background: rgba(121,226,255,0.1);
+            border: 1px solid rgba(121,226,255,0.2);
+            border-radius: 6px;
+            padding: 12px 16px;
+            color: var(--white);
+            font-size: 14px;
+            width: 250px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        .login-input:focus { outline: none; border-color: var(--monday); }
+        .login-input::placeholder { color: var(--gray-600); }
+        .login-btn {
+            background: var(--monday);
+            border: none;
+            color: var(--storm);
+            padding: 12px 32px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .login-btn:hover { opacity: 0.9; }
+        .login-error {
+            color: var(--hot);
+            font-size: 11px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        /* DATA MODE SELECTION */
+        .mode-screen {
+            position: fixed; inset: 0; background: var(--storm);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 9998;
+        }
+        .mode-screen.hidden { display: none; }
+        .mode-box {
+            background: rgba(121,226,255,0.05);
+            border: 2px solid rgba(121,226,255,0.2);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+        }
+        .mode-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+        .mode-sub { font-size: 12px; color: var(--gray-600); margin-bottom: 24px; line-height: 1.6; }
+        .mode-options { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .mode-option {
+            background: rgba(121,226,255,0.1);
+            border: 2px solid rgba(121,226,255,0.2);
+            border-radius: 12px;
+            padding: 24px 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 180px;
+            text-align: center;
+        }
+        .mode-option:hover { border-color: var(--monday); transform: translateY(-2px); }
+        .mode-option.selected { border-color: var(--day); background: rgba(199,248,138,0.1); }
+        .mode-option-icon { font-size: 36px; margin-bottom: 12px; }
+        .mode-option-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .mode-option-desc { font-size: 10px; color: var(--gray-600); }
+        .mode-btn {
+            background: var(--monday);
+            border: none;
+            color: var(--storm);
+            padding: 12px 40px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 24px;
+            transition: opacity 0.2s;
+        }
+        .mode-btn:hover { opacity: 0.9; }
+        .mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* PAUL DJ LOADER */
+        .loading { position: fixed; inset: 0; background: var(--storm); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; overflow: hidden; }
+        .loading.hidden { display: none; }
+
+        .dj-scene { position: relative; width: 340px; height: 220px; }
+
+        /* DJ Booth */
+        .dj-booth {
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 160px; height: 55px;
+            background: #1a1a1a;
+            border: 4px solid #333;
+            border-radius: 4px 4px 0 0;
+        }
+        .vinyl-l, .vinyl-r {
+            position: absolute; top: 10px;
+            width: 30px; height: 30px;
+            background: #0a0a0a;
+            border-radius: 50%;
+            border: 3px solid #222;
+            animation: spin 1.2s linear infinite;
+        }
+        .vinyl-l { left: 15px; }
+        .vinyl-r { right: 15px; animation-direction: reverse; }
+        .vinyl-l::after, .vinyl-r::after {
+            content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 8px; height: 8px; background: var(--hot); border-radius: 50%;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Mixer lights */
+        .mixer { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; }
+        .mixer-light { width: 4px; height: 12px; background: #333; border-radius: 2px; }
+        .mixer-light:nth-child(1) { animation: eq 0.3s ease infinite; background: var(--day); }
+        .mixer-light:nth-child(2) { animation: eq 0.3s ease 0.1s infinite; background: var(--monday); }
+        .mixer-light:nth-child(3) { animation: eq 0.3s ease 0.2s infinite; background: var(--warm); }
+        .mixer-light:nth-child(4) { animation: eq 0.3s ease 0.15s infinite; background: var(--hot); }
+        @keyframes eq { 0%,100% { height: 6px; } 50% { height: 16px; } }
+
+        /* 8-BIT PAUL */
+        .paul {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            animation: dj-vibe 0.25s ease infinite alternate;
+        }
+        @keyframes dj-vibe { to { transform: translateX(-50%) translateY(-4px); } }
+
+        .paul-head {
+            width: 28px; height: 28px;
+            background: #8B5A2B;
+            border-radius: 4px;
+            position: relative;
+            margin: 0 auto;
+            box-shadow: inset -3px -3px 0 #6B4423;
+        }
+        .paul-beard {
+            position: absolute;
+            bottom: 2px; left: 50%; transform: translateX(-50%);
+            width: 14px; height: 10px;
+            background: #1a1a1a;
+            border-radius: 0 0 6px 6px;
+        }
+        .paul-eyes {
+            position: absolute;
+            top: 10px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 6px;
+        }
+        .paul-eye { width: 4px; height: 4px; background: #111; border-radius: 1px; }
+        .paul-headphones {
+            position: absolute;
+            top: -4px; left: 50%; transform: translateX(-50%);
+            width: 36px; height: 14px;
+            border: 4px solid #444;
+            border-bottom: none;
+            border-radius: 18px 18px 0 0;
+        }
+        .paul-headphones::before, .paul-headphones::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            width: 10px; height: 10px;
+            background: var(--hot);
+            border-radius: 2px;
+        }
+        .paul-headphones::before { left: -8px; }
+        .paul-headphones::after { right: -8px; }
+
+        .paul-body {
+            width: 32px; height: 24px;
+            background: #111;
+            border-radius: 4px;
+            margin: 2px auto 0;
+            position: relative;
+            box-shadow: inset -3px -3px 0 #000;
+        }
+        .paul-arm-l, .paul-arm-r {
+            position: absolute;
+            top: 4px;
+            width: 8px; height: 16px;
+            background: #8B5A2B;
+            border-radius: 3px;
+            box-shadow: inset -2px -2px 0 #6B4423;
+        }
+        .paul-arm-l { left: -6px; animation: scratch-l 0.25s ease infinite alternate; transform-origin: top; }
+        .paul-arm-r { right: -6px; animation: scratch-r 0.25s ease infinite alternate-reverse; transform-origin: top; }
+        @keyframes scratch-l { to { transform: rotate(-20deg); } }
+        @keyframes scratch-r { to { transform: rotate(20deg); } }
+
+        /* CHAOS - звонки и сообщения */
+        .wa-msg {
+            position: absolute;
+            background: #25D366;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 7px;
+            font-family: 'Press Start 2P';
+            white-space: nowrap;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+        }
+        .wa-msg::before { content: '💬 '; }
+
+        .wa-1 { top: 20px; left: 10px; animation: fly-in-left 2s ease-in-out infinite; }
+        .wa-2 { top: 50px; right: 5px; animation: fly-in-right 2.5s ease-in-out 0.3s infinite; }
+        .wa-3 { top: 90px; left: 5px; animation: fly-in-left 2.2s ease-in-out 0.6s infinite; }
+        .wa-4 { top: 130px; right: 10px; animation: fly-in-right 1.8s ease-in-out 0.9s infinite; }
+        .wa-5 { top: 35px; right: 30px; animation: fly-in-right 2.3s ease-in-out 1.2s infinite; }
+
+        @keyframes fly-in-left {
+            0% { transform: translateX(-60px) scale(0.5); opacity: 0; }
+            30%,70% { transform: translateX(0) scale(1); opacity: 1; }
+            100% { transform: translateX(20px) translateY(-10px) scale(0.8); opacity: 0; }
+        }
+        @keyframes fly-in-right {
+            0% { transform: translateX(60px) scale(0.5); opacity: 0; }
+            30%,70% { transform: translateX(0) scale(1); opacity: 1; }
+            100% { transform: translateX(-20px) translateY(-10px) scale(0.8); opacity: 0; }
+        }
+
+        .call {
+            position: absolute;
+            font-size: 22px;
+            filter: drop-shadow(2px 2px 0 rgba(0,0,0,0.4));
+        }
+        .call-1 { top: 15px; left: 60px; animation: ring 0.4s ease infinite, float-call 2s ease-in-out infinite; }
+        .call-2 { top: 70px; right: 50px; animation: ring 0.4s ease infinite 0.2s, float-call 2.5s ease-in-out 0.5s infinite; }
+        .call-3 { top: 110px; left: 70px; animation: ring 0.4s ease infinite 0.1s, float-call 1.8s ease-in-out 1s infinite; }
+
+        @keyframes ring { 0%,100% { transform: rotate(-15deg); } 50% { transform: rotate(15deg); } }
+        @keyframes float-call { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+        .notif {
+            position: absolute;
+            background: var(--hot);
+            color: white;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Press Start 2P';
+            font-size: 8px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+            animation: pop 0.8s ease infinite;
+        }
+        .notif-1 { top: 40px; left: 100px; animation-delay: 0s; }
+        .notif-2 { top: 80px; right: 90px; animation-delay: 0.4s; }
+        .notif-3 { top: 120px; left: 110px; animation-delay: 0.8s; }
+
+        @keyframes pop { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }
+
+        .note {
+            position: absolute;
+            font-size: 16px;
+            animation: float-note 1.5s ease-out infinite;
+        }
+        .note-1 { bottom: 100px; left: 130px; animation-delay: 0s; }
+        .note-2 { bottom: 110px; right: 130px; animation-delay: 0.5s; }
+        .note-3 { bottom: 90px; left: 145px; animation-delay: 1s; }
+
+        @keyframes float-note {
+            0% { opacity: 0; transform: translateY(0) scale(0.8); }
+            30% { opacity: 1; transform: translateY(-10px) scale(1); }
+            100% { opacity: 0; transform: translateY(-30px) scale(0.6) rotate(20deg); }
+        }
+
+        .load-text {
+            font-family: 'Press Start 2P';
+            font-size: 8px;
+            color: var(--monday);
+            margin-top: 20px;
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        .load-sub { font-size: 10px; color: var(--gray-600); margin-top: 6px; }
+
+        /* HEADER & TABS */
+        .header { background: var(--storm); padding: 12px 20px; border-bottom: 1px solid rgba(121,226,255,0.1); position: sticky; top: 0; z-index: 100; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .logo { display: flex; align-items: center; gap: 8px; }
+        .logo-icon { width: 28px; height: 28px; background: var(--monday); border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--storm); font-size: 14px; }
+        .logo h1 { font-size: 13px; font-weight: 700; }
+
+        .tabs { display: flex; gap: 4px; margin-left: 20px; }
+        .tab {
+            background: rgba(121,226,255,0.1);
+            border: 1px solid rgba(121,226,255,0.2);
+            border-radius: 4px;
+            padding: 6px 14px;
+            color: var(--gray-500);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab:hover { border-color: var(--monday); }
+        .tab.active { background: var(--monday); color: var(--storm); border-color: var(--monday); }
+
+        .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .filter-select, .filter-input { background: rgba(121,226,255,0.1); border: 1px solid rgba(121,226,255,0.2); border-radius: 4px; padding: 6px 10px; color: var(--white); font-size: 11px; font-family: inherit; }
+        .filter-select { cursor: pointer; }
+        .filter-btn { background: var(--monday); border: none; color: var(--storm); padding: 6px 12px; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer; }
+
+        /* Toggle switch */
+        .toggle-wrap { display: flex; align-items: center; gap: 6px; }
+        .toggle-label { font-size: 10px; color: var(--gray-500); }
+        .toggle {
+            width: 36px; height: 20px;
+            background: rgba(121,226,255,0.2);
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle.active { background: var(--day); }
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px; left: 2px;
+            width: 16px; height: 16px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+        .toggle.active::after { transform: translateX(16px); }
+
+        .main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+
+        /* TAB CONTENT */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .card { background: rgba(121,226,255,0.05); border: 1px solid rgba(121,226,255,0.1); border-radius: 8px; padding: 14px; }
+        .card-icon { font-size: 18px; margin-bottom: 6px; }
+        .card-value { font-size: 22px; font-weight: 700; color: var(--monday); }
+        .card-value.green { color: var(--day); }
+        .card-value.yellow { color: var(--warm); }
+        .card-label { font-size: 10px; color: var(--gray-600); margin-top: 2px; }
+
+        .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .chart-box { background: rgba(121,226,255,0.03); border: 1px solid rgba(121,226,255,0.08); border-radius: 8px; padding: 14px; }
+        .chart-title { font-size: 11px; font-weight: 600; margin-bottom: 10px; color: var(--gray-500); }
+        .chart-wrap { height: 180px; }
+
+        .team-box { background: rgba(121,226,255,0.03); border: 1px solid rgba(121,226,255,0.08); border-radius: 8px; padding: 14px; }
+        .team-title { font-size: 11px; font-weight: 600; margin-bottom: 12px; color: var(--gray-500); }
+        .team-table { width: 100%; font-size: 11px; }
+        .team-table th { text-align: left; font-size: 9px; color: var(--gray-600); padding: 6px 8px; border-bottom: 1px solid rgba(121,226,255,0.1); }
+        .team-table td { padding: 8px; border-bottom: 1px solid rgba(121,226,255,0.05); }
+        .team-table .name { font-weight: 600; }
+        .team-table .good { color: var(--day); }
+
+        /* LOAD TAB CHARTS */
+        .load-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .load-chart-box { background: rgba(121,226,255,0.03); border: 1px solid rgba(121,226,255,0.08); border-radius: 8px; padding: 14px; }
+        .load-chart-box.full { grid-column: 1 / -1; }
+        .load-chart-title { font-size: 11px; font-weight: 600; margin-bottom: 10px; color: var(--gray-500); }
+        .load-chart-wrap { height: 200px; }
+
+        /* Groups & Contractors tables */
+        .data-table { width: 100%; font-size: 11px; border-collapse: collapse; }
+        .data-table th { text-align: left; font-size: 9px; color: var(--gray-600); padding: 10px 12px; border-bottom: 1px solid rgba(121,226,255,0.15); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .data-table td { padding: 12px; border-bottom: 1px solid rgba(121,226,255,0.05); }
+        .data-table tr:hover { background: rgba(121,226,255,0.03); }
+        .data-table .rank { color: var(--gray-600); font-size: 10px; }
+        .data-table .name { font-weight: 600; }
+        .data-table .count { color: var(--monday); font-weight: 600; }
+        .data-table .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 600;
+        }
+        .badge-hot { background: rgba(255,107,107,0.2); color: var(--hot); }
+        .badge-warm { background: rgba(255,217,61,0.2); color: var(--warm); }
+        .badge-cool { background: rgba(121,226,255,0.2); color: var(--monday); }
+
+        /* Delta indicators */
+        .delta { font-size: 10px; margin-left: 6px; font-weight: 600; }
+        .delta.up { color: var(--day); }
+        .delta.down { color: var(--hot); }
+        .delta.neutral { color: var(--gray-600); }
+
+        /* Metrics grid */
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .metric-card {
+            background: rgba(121,226,255,0.05);
+            border: 1px solid rgba(121,226,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .metric-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .metric-icon { font-size: 24px; }
+        .metric-title { font-size: 11px; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-value { font-size: 32px; font-weight: 700; color: var(--monday); display: flex; align-items: baseline; gap: 8px; }
+        .metric-value.green { color: var(--day); }
+        .metric-value.yellow { color: var(--warm); }
+        .metric-value.red { color: var(--hot); }
+        .metric-unit { font-size: 14px; color: var(--gray-500); font-weight: 400; }
+        .metric-sub { font-size: 10px; color: var(--gray-600); margin-top: 4px; }
+        .metric-delta { font-size: 12px; margin-top: 8px; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+        .metric-delta.up { background: rgba(199,248,138,0.15); color: var(--day); }
+        .metric-delta.down { background: rgba(255,107,107,0.15); color: var(--hot); }
+        .metric-delta.neutral { background: rgba(121,226,255,0.1); color: var(--gray-500); }
+
+        /* Time distribution chart */
+        .response-chart-box {
+            background: rgba(121,226,255,0.03);
+            border: 1px solid rgba(121,226,255,0.08);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .response-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 16px; color: var(--white); }
+        .response-chart-wrap { height: 250px; }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-count {
+            font-size: 11px;
+            color: var(--gray-600);
+        }
+
+        @media (max-width: 768px) {
+            .charts { grid-template-columns: 1fr; }
+            .load-grid { grid-template-columns: 1fr; }
+            .cards { grid-template-columns: repeat(2, 1fr); }
+            .tabs { margin-left: 0; margin-top: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- LOGIN SCREEN -->
+    <div class="login-screen" id="login-screen">
+        <div class="login-box">
+            <div class="login-logo">P</div>
+            <div class="login-title">WhatsApp Analytics</div>
+            <div class="login-sub">Enter password to continue</div>
+            <input type="password" class="login-input" id="password-input" placeholder="Password" onkeypress="if(event.key==='Enter')checkPassword()">
+            <br>
+            <button class="login-btn" onclick="checkPassword()">Login</button>
+            <div class="login-error" id="login-error">Wrong password!</div>
+        </div>
+    </div>
+
+    <!-- MODE SELECTION SCREEN -->
+    <div class="mode-screen hidden" id="mode-screen">
+        <div class="mode-box">
+            <div class="login-logo">P</div>
+            <div class="mode-title">What do you want to analyze?</div>
+            <div class="mode-sub">Choose which conversations to include in the analytics.<br>This affects all statistics across the dashboard.</div>
+            <div class="mode-options">
+                <div class="mode-option" id="mode-groups" onclick="selectMode('groups')">
+                    <div class="mode-option-icon">👥</div>
+                    <div class="mode-option-title">Groups Only</div>
+                    <div class="mode-option-desc">Only WhatsApp group chats<br>(threads with multiple people)</div>
+                </div>
+                <div class="mode-option" id="mode-all" onclick="selectMode('all')">
+                    <div class="mode-option-icon">💬</div>
+                    <div class="mode-option-title">All Chats</div>
+                    <div class="mode-option-desc">Groups + Direct Messages<br>(all conversations)</div>
+                </div>
+            </div>
+            <button class="mode-btn" id="mode-continue-btn" onclick="continueWithMode()" disabled>Continue</button>
+        </div>
+    </div>
+
+    <!-- 8-BIT PAUL DJ LOADER -->
+    <div class="loading hidden" id="loading">
+        <div class="dj-scene">
+            <div class="wa-msg wa-1">Price?</div>
+            <div class="wa-msg wa-2">VIP table!</div>
+            <div class="wa-msg wa-3">Booking</div>
+            <div class="wa-msg wa-4">2 tickets</div>
+            <div class="wa-msg wa-5">Hi!</div>
+            <div class="call call-1">📞</div>
+            <div class="call call-2">📲</div>
+            <div class="call call-3">☎️</div>
+            <div class="notif notif-1">5</div>
+            <div class="notif notif-2">12</div>
+            <div class="notif notif-3">3</div>
+            <div class="note note-1">🎵</div>
+            <div class="note note-2">🎶</div>
+            <div class="note note-3">♪</div>
+            <div class="paul">
+                <div class="paul-head">
+                    <div class="paul-headphones"></div>
+                    <div class="paul-eyes">
+                        <div class="paul-eye"></div>
+                        <div class="paul-eye"></div>
+                    </div>
+                    <div class="paul-beard"></div>
+                </div>
+                <div class="paul-body">
+                    <div class="paul-arm-l"></div>
+                    <div class="paul-arm-r"></div>
+                </div>
+            </div>
+            <div class="dj-booth">
+                <div class="vinyl-l"></div>
+                <div class="vinyl-r"></div>
+                <div class="mixer">
+                    <div class="mixer-light"></div>
+                    <div class="mixer-light"></div>
+                    <div class="mixer-light"></div>
+                    <div class="mixer-light"></div>
+                </div>
+            </div>
+        </div>
+        <div class="load-text">PAUL DJ LOADING...</div>
+        <div class="load-sub" id="load-status">Connecting to Supabase...</div>
+    </div>
+
+    <div id="app" style="display: none;">
+        <header class="header">
+            <div class="header-row">
+                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div class="logo">
+                        <div class="logo-icon">P</div>
+                        <h1>WhatsApp Analytics</h1>
+                    </div>
+                    <div class="tabs">
+                        <div class="tab active" data-tab="overview">Overview</div>
+                        <div class="tab" data-tab="load">Load</div>
+                        <div class="tab" data-tab="metrics">Metrics</div>
+                        <div class="tab" data-tab="groups">Groups</div>
+                        <div class="tab" data-tab="contractors">Contractors</div>
+                    </div>
+                </div>
+                <div class="filters">
+                    <div class="toggle-wrap" title="Toggle between Groups Only and All Chats">
+                        <span class="toggle-label" id="modeLabel">Groups Only</span>
+                        <div class="toggle" id="groupsOnlyToggle" onclick="toggleGroupsOnly()"></div>
+                    </div>
+                    <input type="date" class="filter-input" id="dateFrom">
+                    <span style="color: var(--gray-600);">→</span>
+                    <input type="date" class="filter-input" id="dateTo">
+                    <select class="filter-select" id="repFilter">
+                        <option value="">All Reps</option>
+                    </select>
+                    <button class="filter-btn" onclick="refresh()">Apply</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- OVERVIEW TAB -->
+            <div class="tab-content active" id="tab-overview">
+                <div class="cards">
+                    <div class="card">
+                        <div class="card-icon">💬</div>
+                        <div class="card-value" id="kpi-total">-<span class="delta" id="delta-total"></span></div>
+                        <div class="card-label">Total Messages</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">👥</div>
+                        <div class="card-value green" id="kpi-convos">-<span class="delta" id="delta-convos"></span></div>
+                        <div class="card-label">Conversations</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">📤</div>
+                        <div class="card-value" id="kpi-sent">-<span class="delta" id="delta-sent"></span></div>
+                        <div class="card-label">Sent</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">📥</div>
+                        <div class="card-value" id="kpi-received">-<span class="delta" id="delta-received"></span></div>
+                        <div class="card-label">Received</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">📊</div>
+                        <div class="card-value yellow" id="kpi-depth">-<span class="delta" id="delta-depth"></span></div>
+                        <div class="card-label">Msgs/Convo</div>
+                    </div>
+                </div>
+
+                <div class="charts">
+                    <div class="chart-box">
+                        <div class="chart-title">📈 Daily Volume</div>
+                        <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">👥 Team Distribution</div>
+                        <div class="chart-wrap"><canvas id="chart-team"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="team-box">
+                    <div class="team-title">🏆 Team Performance</div>
+                    <table class="team-table">
+                        <thead>
+                            <tr><th>Name</th><th>Messages</th><th>Sent</th><th>Received</th><th>Convos</th><th>Depth</th></tr>
+                        </thead>
+                        <tbody id="team-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- LOAD TAB -->
+            <div class="tab-content" id="tab-load">
+                <div class="load-grid">
+                    <div class="load-chart-box full">
+                        <div class="load-chart-title">📅 Weekly Load (Messages per Week)</div>
+                        <div class="load-chart-wrap"><canvas id="chart-weekly"></canvas></div>
+                    </div>
+                    <div class="load-chart-box">
+                        <div class="load-chart-title">📆 Day of Week Load</div>
+                        <div class="load-chart-wrap"><canvas id="chart-weekday"></canvas></div>
+                    </div>
+                    <div class="load-chart-box">
+                        <div class="load-chart-title">🗓️ Monthly Load</div>
+                        <div class="load-chart-wrap"><canvas id="chart-monthly"></canvas></div>
+                    </div>
+                    <div class="load-chart-box full">
+                        <div class="load-chart-title">⏰ Hourly Load (Activity by Hour)</div>
+                        <div class="load-chart-wrap"><canvas id="chart-hourly"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- METRICS TAB -->
+            <div class="tab-content" id="tab-metrics">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-icon">⚡</span>
+                            <span class="metric-title">Avg Response Time</span>
+                        </div>
+                        <div class="metric-value" id="metric-avg-response">-<span class="metric-unit">min</span></div>
+                        <div class="metric-sub">Time to first reply</div>
+                        <div class="metric-delta neutral" id="metric-avg-response-delta">No comparison</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-icon">🏃</span>
+                            <span class="metric-title">Median Response</span>
+                        </div>
+                        <div class="metric-value" id="metric-median-response">-<span class="metric-unit">min</span></div>
+                        <div class="metric-sub">50th percentile</div>
+                        <div class="metric-delta neutral" id="metric-median-response-delta">No comparison</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-icon">🚀</span>
+                            <span class="metric-title">Fast Replies (&lt;5 min)</span>
+                        </div>
+                        <div class="metric-value green" id="metric-fast-replies">-<span class="metric-unit">%</span></div>
+                        <div class="metric-sub">Quick reactions</div>
+                        <div class="metric-delta neutral" id="metric-fast-replies-delta">No comparison</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-icon">🐢</span>
+                            <span class="metric-title">Slow Replies (&gt;1 hr)</span>
+                        </div>
+                        <div class="metric-value red" id="metric-slow-replies">-<span class="metric-unit">%</span></div>
+                        <div class="metric-sub">Need improvement</div>
+                        <div class="metric-delta neutral" id="metric-slow-replies-delta">No comparison</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-icon">📊</span>
+                            <span class="metric-title">95th Percentile</span>
+                        </div>
+                        <div class="metric-value yellow" id="metric-p95-response">-<span class="metric-unit">min</span></div>
+                        <div class="metric-sub">Worst case response</div>
+                        <div class="metric-delta neutral" id="metric-p95-response-delta">No comparison</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-icon">💬</span>
+                            <span class="metric-title">Conversations Analyzed</span>
+                        </div>
+                        <div class="metric-value" id="metric-convos-analyzed">-</div>
+                        <div class="metric-sub">With response data</div>
+                        <div class="metric-delta neutral" id="metric-convos-analyzed-delta">No comparison</div>
+                    </div>
+                </div>
+
+                <div class="response-chart-box">
+                    <div class="response-chart-title">⏱️ Response Time Distribution</div>
+                    <div class="response-chart-wrap"><canvas id="chart-response-dist"></canvas></div>
+                </div>
+
+                <div class="charts">
+                    <div class="chart-box">
+                        <div class="chart-title">👤 Response Time by Rep</div>
+                        <div class="chart-wrap"><canvas id="chart-response-by-rep"></canvas></div>
+                    </div>
+                    <div class="chart-box">
+                        <div class="chart-title">📆 Response Time Trend</div>
+                        <div class="chart-wrap"><canvas id="chart-response-trend"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="team-box">
+                    <div class="section-header">
+                        <div class="section-title">🏆 Response Time by Team Member</div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>#</th><th>Name</th><th>Avg Response</th><th>Median</th><th>Fast (&lt;5m)</th><th>Slow (&gt;1h)</th><th>Rating</th></tr>
+                        </thead>
+                        <tbody id="metrics-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- GROUPS TAB -->
+            <div class="tab-content" id="tab-groups">
+                <div class="team-box">
+                    <div class="section-header">
+                        <div class="section-title">👥 WhatsApp Groups</div>
+                        <div class="section-count" id="groups-count">0 groups</div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>#</th><th>Group Name</th><th>Messages</th><th>Sent</th><th>Received</th><th>Activity</th></tr>
+                        </thead>
+                        <tbody id="groups-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- CONTRACTORS TAB -->
+            <div class="tab-content" id="tab-contractors">
+                <div class="team-box">
+                    <div class="section-header">
+                        <div class="section-title">🤝 Top Contractors & Contacts</div>
+                        <div class="section-count" id="contractors-count">0 contacts</div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>#</th><th>Contact</th><th>Messages</th><th>Sent</th><th>Received</th><th>Activity</th></tr>
+                        </thead>
+                        <tbody id="contractors-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://kwftlkfvtglnugxsyjci.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3ZnRsa2Z2dGdsbnVneHN5amNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDAxODUsImV4cCI6MjA2MzIxNjE4NX0.9Cn1xahmF8q6pbbWQHNyQSc9fZkVvJaqTzMRZCtmb9E';
+        const PASSWORD = 'platinumlist2024';
+
+        // Excluded employees from contractors
+        const EXCLUDED_CONTACTS = ['Cosmin Ivan', 'cosmin ivan', 'COSMIN IVAN'];
+
+        const { createClient } = supabase;
+        const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        Chart.defaults.color = '#6c757d';
+        Chart.defaults.borderColor = 'rgba(121,226,255,0.1)';
+
+        let charts = {};
+        let rawData = [];      // ВСЕ данные из Supabase (грузим один раз)
+        let filteredData = []; // Отфильтрованные данные для отображения
+        let previousPeriodData = []; // Данные предыдущего периода для сравнения
+        let groupsOnlyMode = false;  // Toggle в header
+        let globalGroupsOnlyMode = false; // Глобальный режим (выбор при старте)
+        let selectedMode = null;
+        let dataLoaded = false;
+        const fmt = n => n?.toLocaleString() || '0';
+
+        // Mode selection
+        function selectMode(mode) {
+            selectedMode = mode;
+            document.querySelectorAll('.mode-option').forEach(el => el.classList.remove('selected'));
+            document.getElementById('mode-' + mode).classList.add('selected');
+            document.getElementById('mode-continue-btn').disabled = false;
+        }
+
+        function continueWithMode() {
+            if (!selectedMode) return;
+            globalGroupsOnlyMode = (selectedMode === 'groups');
+            groupsOnlyMode = globalGroupsOnlyMode; // Sync toggle with initial choice
+
+            document.getElementById('mode-screen').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+
+            // Update toggle state
+            if (globalGroupsOnlyMode) {
+                document.getElementById('groupsOnlyToggle').classList.add('active');
+            }
+
+            init();
+        }
+
+        // Calculate previous period data for comparison
+        function calculatePreviousPeriod() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+
+            if (!dateFrom || !dateTo) {
+                previousPeriodData = [];
+                return;
+            }
+
+            const from = new Date(dateFrom);
+            const to = new Date(dateTo);
+            const periodLength = to - from; // in milliseconds
+
+            const prevTo = new Date(from - 1); // day before current period
+            const prevFrom = new Date(prevTo - periodLength);
+
+            previousPeriodData = rawData.filter(d => {
+                if (!d.message_timestamp) return false;
+                const msgDate = new Date(d.message_timestamp);
+                return msgDate >= prevFrom && msgDate <= prevTo;
+            });
+
+            // Apply same filters
+            const rep = document.getElementById('repFilter').value;
+            if (rep) {
+                previousPeriodData = previousPeriodData.filter(d => d.account_email === rep);
+            }
+            if (groupsOnlyMode) {
+                previousPeriodData = previousPeriodData.filter(d => isGroup(d));
+            }
+
+            console.log(`Previous period: ${prevFrom.toLocaleDateString()} - ${prevTo.toLocaleDateString()}, ${previousPeriodData.length} messages`);
+        }
+
+        // Format delta with arrow
+        function formatDelta(current, previous, inverse = false) {
+            if (!previous || previous === 0) return { text: 'No comparison', class: 'neutral' };
+            const change = ((current - previous) / previous) * 100;
+            const absChange = Math.abs(change).toFixed(1);
+
+            if (Math.abs(change) < 1) return { text: '≈ same', class: 'neutral' };
+
+            // For time metrics, lower is better (inverse = true)
+            const isGood = inverse ? change < 0 : change > 0;
+
+            if (change > 0) {
+                return { text: `↑ ${absChange}%`, class: isGood ? 'up' : 'down' };
+            } else {
+                return { text: `↓ ${absChange}%`, class: isGood ? 'up' : 'down' };
+            }
+        }
+
+        // Calculate response times for a dataset
+        function calculateResponseTimes(data) {
+            // Group messages by chat_id and sort by timestamp
+            const chatGroups = {};
+            data.forEach(d => {
+                if (!d.chat_id || !d.message_timestamp) return;
+                if (!chatGroups[d.chat_id]) chatGroups[d.chat_id] = [];
+                chatGroups[d.chat_id].push(d);
+            });
+
+            const responseTimes = [];
+            const responseTimesByRep = {};
+            const responseTimesByDay = {};
+
+            Object.values(chatGroups).forEach(messages => {
+                // Sort by timestamp
+                messages.sort((a, b) => new Date(a.message_timestamp) - new Date(b.message_timestamp));
+
+                for (let i = 1; i < messages.length; i++) {
+                    const prev = messages[i - 1];
+                    const curr = messages[i];
+
+                    // If previous was received and current is sent = response time
+                    if (prev.message_direction === 'received' && curr.message_direction === 'sent') {
+                        const prevTime = new Date(prev.message_timestamp);
+                        const currTime = new Date(curr.message_timestamp);
+                        const diffMinutes = (currTime - prevTime) / (1000 * 60);
+
+                        // Only count reasonable response times (0-24 hours)
+                        if (diffMinutes >= 0 && diffMinutes <= 1440) {
+                            responseTimes.push(diffMinutes);
+
+                            // By rep
+                            const rep = curr.account_full_name || curr.account_email?.split('@')[0] || 'Unknown';
+                            if (!responseTimesByRep[rep]) responseTimesByRep[rep] = [];
+                            responseTimesByRep[rep].push(diffMinutes);
+
+                            // By day
+                            const day = curr.message_timestamp.split('T')[0];
+                            if (!responseTimesByDay[day]) responseTimesByDay[day] = [];
+                            responseTimesByDay[day].push(diffMinutes);
+                        }
+                    }
+                }
+            });
+
+            return { responseTimes, responseTimesByRep, responseTimesByDay, convosAnalyzed: Object.keys(chatGroups).length };
+        }
+
+        // Calculate percentile
+        function percentile(arr, p) {
+            if (arr.length === 0) return 0;
+            const sorted = [...arr].sort((a, b) => a - b);
+            const idx = Math.ceil((p / 100) * sorted.length) - 1;
+            return sorted[Math.max(0, idx)];
+        }
+
+        // Format minutes nicely
+        function formatMinutes(mins) {
+            if (mins < 1) return '<1';
+            if (mins < 60) return Math.round(mins).toString();
+            if (mins < 1440) return Math.round(mins / 60) + 'h';
+            return Math.round(mins / 1440) + 'd';
+        }
+
+        function setStatus(t) { document.getElementById('load-status').textContent = t; }
+
+        // PASSWORD CHECK
+        function checkPassword() {
+            const input = document.getElementById('password-input').value;
+            if (input === PASSWORD) {
+                document.getElementById('login-screen').classList.add('hidden');
+                // Show mode selection instead of loading directly
+                document.getElementById('mode-screen').classList.remove('hidden');
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+                document.getElementById('password-input').value = '';
+            }
+        }
+
+        // GROUPS ONLY TOGGLE
+        function toggleGroupsOnly() {
+            groupsOnlyMode = !groupsOnlyMode;
+            document.getElementById('groupsOnlyToggle').classList.toggle('active', groupsOnlyMode);
+            refresh();
+        }
+
+        // Check if chat is a group - use is_group field from database
+        function isGroup(record) {
+            return record && record.is_group === true;
+        }
+
+        // TABS
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Default: load ALL data (no date filter)
+        // User can set dates if they want to filter
+        document.getElementById('dateTo').value = '';
+        document.getElementById('dateFrom').value = '';
+
+        async function loadReps() {
+            const { data } = await db.from('whatsapp_messages').select('account_email, account_full_name').limit(500);
+            const unique = {};
+            data?.forEach(d => { if (d.account_email && !unique[d.account_email]) unique[d.account_email] = d.account_full_name || d.account_email.split('@')[0]; });
+            const sel = document.getElementById('repFilter');
+            Object.entries(unique).sort((a,b) => a[1].localeCompare(b[1])).forEach(([email, name]) => {
+                sel.innerHTML += `<option value="${email}">${name}</option>`;
+            });
+        }
+
+        // Загрузка ВСЕХ данных из Supabase (один раз)
+        async function loadAllData() {
+            let allResults = [];
+            let offset = 0;
+            const pageSize = 1000;
+            let hasMore = true;
+
+            while (hasMore) {
+                setStatus(`Loading from Supabase... ${allResults.length.toLocaleString()} messages`);
+
+                const { data, error } = await db.from('whatsapp_messages')
+                    .select('*')
+                    .order('message_timestamp', { ascending: false })
+                    .range(offset, offset + pageSize - 1);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    allResults = allResults.concat(data);
+                    offset += pageSize;
+                    hasMore = data.length === pageSize;
+                } else {
+                    hasMore = false;
+                }
+            }
+
+            return allResults;
+        }
+
+        // Фильтрация на клиенте (быстро, без запросов к Supabase)
+        function applyFilters() {
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            const rep = document.getElementById('repFilter').value;
+
+            let result = rawData;
+
+            // Date filter
+            if (dateFrom) {
+                const from = new Date(dateFrom + 'T00:00:00');
+                result = result.filter(d => d.message_timestamp && new Date(d.message_timestamp) >= from);
+            }
+            if (dateTo) {
+                const to = new Date(dateTo + 'T23:59:59');
+                result = result.filter(d => d.message_timestamp && new Date(d.message_timestamp) <= to);
+            }
+
+            // Rep filter
+            if (rep) {
+                result = result.filter(d => d.account_email === rep);
+            }
+
+            // Groups only filter
+            if (groupsOnlyMode) {
+                result = result.filter(d => isGroup(d));
+            }
+
+            return result;
+        }
+
+        function updateOverview(data) {
+            const total = data.length;
+            const sent = data.filter(d => d.message_direction === 'sent').length;
+            const received = data.filter(d => d.message_direction === 'received').length;
+            const convos = new Set(data.map(d => d.chat_id)).size;
+            const depth = convos ? (total / convos).toFixed(1) : 0;
+
+            // Previous period metrics
+            let prevTotal = 0, prevSent = 0, prevReceived = 0, prevConvos = 0, prevDepth = 0;
+            if (previousPeriodData.length > 0) {
+                prevTotal = previousPeriodData.length;
+                prevSent = previousPeriodData.filter(d => d.message_direction === 'sent').length;
+                prevReceived = previousPeriodData.filter(d => d.message_direction === 'received').length;
+                prevConvos = new Set(previousPeriodData.map(d => d.chat_id)).size;
+                prevDepth = prevConvos ? (prevTotal / prevConvos) : 0;
+            }
+
+            // Update values with deltas
+            const totalDelta = formatDelta(total, prevTotal);
+            const convosDelta = formatDelta(convos, prevConvos);
+            const sentDelta = formatDelta(sent, prevSent);
+            const receivedDelta = formatDelta(received, prevReceived);
+            const depthDelta = formatDelta(parseFloat(depth), prevDepth);
+
+            document.getElementById('kpi-total').innerHTML = `${fmt(total)}<span class="delta ${totalDelta.class}" id="delta-total">${totalDelta.text !== 'No comparison' ? totalDelta.text : ''}</span>`;
+            document.getElementById('kpi-convos').innerHTML = `${fmt(convos)}<span class="delta ${convosDelta.class}" id="delta-convos">${convosDelta.text !== 'No comparison' ? convosDelta.text : ''}</span>`;
+            document.getElementById('kpi-sent').innerHTML = `${fmt(sent)}<span class="delta ${sentDelta.class}" id="delta-sent">${sentDelta.text !== 'No comparison' ? sentDelta.text : ''}</span>`;
+            document.getElementById('kpi-received').innerHTML = `${fmt(received)}<span class="delta ${receivedDelta.class}" id="delta-received">${receivedDelta.text !== 'No comparison' ? receivedDelta.text : ''}</span>`;
+            document.getElementById('kpi-depth').innerHTML = `${depth}<span class="delta ${depthDelta.class}" id="delta-depth">${depthDelta.text !== 'No comparison' ? depthDelta.text : ''}</span>`;
+
+            const dayMap = {};
+            data.forEach(d => {
+                if (!d.message_timestamp) return;
+                const day = d.message_timestamp.split('T')[0];
+                if (!dayMap[day]) dayMap[day] = { sent: 0, received: 0 };
+                d.message_direction === 'sent' ? dayMap[day].sent++ : dayMap[day].received++;
+            });
+            const days = Object.entries(dayMap).sort((a,b) => a[0].localeCompare(b[0]));
+
+            if (charts.daily) charts.daily.destroy();
+            charts.daily = new Chart(document.getElementById('chart-daily'), {
+                type: 'bar',
+                data: {
+                    labels: days.map(([d]) => new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' })),
+                    datasets: [
+                        { label: 'Sent', data: days.map(([,v]) => v.sent), backgroundColor: 'rgba(199,248,138,0.7)' },
+                        { label: 'Received', data: days.map(([,v]) => v.received), backgroundColor: 'rgba(121,226,255,0.5)' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { stacked: true, beginAtZero: true }, x: { stacked: true } } }
+            });
+
+            const teamMap = {};
+            data.forEach(d => {
+                if (!d.account_email) return;
+                if (!teamMap[d.account_email]) teamMap[d.account_email] = { name: d.account_full_name || d.account_email.split('@')[0], sent: 0, received: 0, chats: new Set() };
+                d.message_direction === 'sent' ? teamMap[d.account_email].sent++ : teamMap[d.account_email].received++;
+                if (d.chat_id) teamMap[d.account_email].chats.add(d.chat_id);
+            });
+            const team = Object.values(teamMap).sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
+
+            if (charts.team) charts.team.destroy();
+            charts.team = new Chart(document.getElementById('chart-team'), {
+                type: 'doughnut',
+                data: {
+                    labels: team.slice(0, 6).map(t => t.name.split(' ')[0]),
+                    datasets: [{ data: team.slice(0, 6).map(t => t.sent + t.received), backgroundColor: ['#79E2FF', '#C7F88A', '#00A5D3', '#FFD93D', '#FF6B6B', '#9B59B6'] }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
+            });
+
+            document.getElementById('team-tbody').innerHTML = team.map(t => {
+                const total = t.sent + t.received;
+                const depth = (total / (t.chats.size || 1)).toFixed(1);
+                return `<tr>
+                    <td class="name">${t.name}</td>
+                    <td>${fmt(total)}</td>
+                    <td>${fmt(t.sent)}</td>
+                    <td>${fmt(t.received)}</td>
+                    <td>${t.chats.size}</td>
+                    <td class="${depth >= 15 ? 'good' : ''}">${depth}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function updateLoad(data) {
+            // Weekly load
+            const weekMap = {};
+            data.forEach(d => {
+                if (!d.message_timestamp) return;
+                const date = new Date(d.message_timestamp);
+                const week = getWeekNumber(date);
+                const key = `${date.getFullYear()}-W${week.toString().padStart(2, '0')}`;
+                weekMap[key] = (weekMap[key] || 0) + 1;
+            });
+            const weeks = Object.entries(weekMap).sort((a,b) => a[0].localeCompare(b[0]));
+
+            if (charts.weekly) charts.weekly.destroy();
+            charts.weekly = new Chart(document.getElementById('chart-weekly'), {
+                type: 'line',
+                data: {
+                    labels: weeks.map(([w]) => w),
+                    datasets: [{
+                        label: 'Messages',
+                        data: weeks.map(([,v]) => v),
+                        borderColor: '#79E2FF',
+                        backgroundColor: 'rgba(121,226,255,0.2)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // Day of week load
+            const weekdayMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+            const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            data.forEach(d => {
+                if (!d.message_timestamp) return;
+                const day = new Date(d.message_timestamp).getDay();
+                weekdayMap[day]++;
+            });
+
+            if (charts.weekday) charts.weekday.destroy();
+            charts.weekday = new Chart(document.getElementById('chart-weekday'), {
+                type: 'bar',
+                data: {
+                    labels: weekdayNames,
+                    datasets: [{
+                        label: 'Messages',
+                        data: Object.values(weekdayMap),
+                        backgroundColor: ['#FF6B6B', '#79E2FF', '#79E2FF', '#79E2FF', '#79E2FF', '#79E2FF', '#FF6B6B']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // Monthly load
+            const monthMap = {};
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            data.forEach(d => {
+                if (!d.message_timestamp) return;
+                const date = new Date(d.message_timestamp);
+                const key = `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, '0')}`;
+                monthMap[key] = (monthMap[key] || 0) + 1;
+            });
+            const months = Object.entries(monthMap).sort((a,b) => a[0].localeCompare(b[0]));
+
+            if (charts.monthly) charts.monthly.destroy();
+            charts.monthly = new Chart(document.getElementById('chart-monthly'), {
+                type: 'bar',
+                data: {
+                    labels: months.map(([m]) => {
+                        const [y, mo] = m.split('-');
+                        return monthNames[parseInt(mo)-1] + ' ' + y.slice(2);
+                    }),
+                    datasets: [{
+                        label: 'Messages',
+                        data: months.map(([,v]) => v),
+                        backgroundColor: '#C7F88A'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // Hourly load
+            const hourMap = {};
+            for (let i = 0; i < 24; i++) hourMap[i] = 0;
+            data.forEach(d => {
+                if (!d.message_timestamp) return;
+                const hour = new Date(d.message_timestamp).getHours();
+                hourMap[hour]++;
+            });
+
+            if (charts.hourly) charts.hourly.destroy();
+            charts.hourly = new Chart(document.getElementById('chart-hourly'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(hourMap).map(h => h.toString().padStart(2, '0') + ':00'),
+                    datasets: [{
+                        label: 'Messages',
+                        data: Object.values(hourMap),
+                        backgroundColor: Object.keys(hourMap).map(h => {
+                            const hour = parseInt(h);
+                            if (hour >= 9 && hour <= 18) return '#79E2FF';
+                            return 'rgba(121,226,255,0.3)';
+                        })
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        function updateGroups(data) {
+            // Groups = ALL unique chats
+            const groupMap = {};
+            data.forEach(d => {
+                const chatId = d.chat_id;
+                if (!chatId) return;
+
+                // Используем chat_full_name как основное имя
+                const name = d.chat_full_name || String(chatId).split('@')[0] || 'Unknown';
+                if (!groupMap[chatId]) groupMap[chatId] = { name, sent: 0, received: 0 };
+                d.message_direction === 'sent' ? groupMap[chatId].sent++ : groupMap[chatId].received++;
+            });
+
+            const groups = Object.values(groupMap).sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
+
+            document.getElementById('groups-count').textContent = `${groups.length} chats`;
+
+            document.getElementById('groups-tbody').innerHTML = groups.length ? groups.slice(0, 100).map((g, i) => {
+                const total = g.sent + g.received;
+                const badge = total > 100 ? 'badge-hot' : (total > 50 ? 'badge-warm' : 'badge-cool');
+                const activity = total > 100 ? 'Very Active' : (total > 50 ? 'Active' : 'Normal');
+                return `<tr>
+                    <td class="rank">${i + 1}</td>
+                    <td class="name">${g.name}</td>
+                    <td class="count">${fmt(total)}</td>
+                    <td>${fmt(g.sent)}</td>
+                    <td>${fmt(g.received)}</td>
+                    <td><span class="badge ${badge}">${activity}</span></td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gray-600);padding:40px;">No chats found</td></tr>';
+        }
+
+        function updateMetrics(data) {
+            const current = calculateResponseTimes(data);
+            const prev = previousPeriodData.length > 0 ? calculateResponseTimes(previousPeriodData) : null;
+
+            const rt = current.responseTimes;
+            console.log(`Response times calculated: ${rt.length} samples`);
+
+            if (rt.length === 0) {
+                document.getElementById('metric-avg-response').innerHTML = '-<span class="metric-unit">min</span>';
+                document.getElementById('metric-median-response').innerHTML = '-<span class="metric-unit">min</span>';
+                document.getElementById('metric-fast-replies').innerHTML = '-<span class="metric-unit">%</span>';
+                document.getElementById('metric-slow-replies').innerHTML = '-<span class="metric-unit">%</span>';
+                document.getElementById('metric-p95-response').innerHTML = '-<span class="metric-unit">min</span>';
+                document.getElementById('metric-convos-analyzed').textContent = current.convosAnalyzed;
+                document.getElementById('metrics-tbody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--gray-600);padding:40px;">No response data available</td></tr>';
+                return;
+            }
+
+            // Current metrics
+            const avgResponse = rt.reduce((a, b) => a + b, 0) / rt.length;
+            const medianResponse = percentile(rt, 50);
+            const p95Response = percentile(rt, 95);
+            const fastReplies = (rt.filter(t => t < 5).length / rt.length) * 100;
+            const slowReplies = (rt.filter(t => t > 60).length / rt.length) * 100;
+
+            // Previous period metrics for comparison
+            let prevAvg = null, prevMedian = null, prevFast = null, prevSlow = null, prevP95 = null, prevConvos = null;
+            if (prev && prev.responseTimes.length > 0) {
+                const prt = prev.responseTimes;
+                prevAvg = prt.reduce((a, b) => a + b, 0) / prt.length;
+                prevMedian = percentile(prt, 50);
+                prevP95 = percentile(prt, 95);
+                prevFast = (prt.filter(t => t < 5).length / prt.length) * 100;
+                prevSlow = (prt.filter(t => t > 60).length / prt.length) * 100;
+                prevConvos = prev.convosAnalyzed;
+            }
+
+            // Update UI
+            document.getElementById('metric-avg-response').innerHTML = `${formatMinutes(avgResponse)}<span class="metric-unit">min</span>`;
+            document.getElementById('metric-median-response').innerHTML = `${formatMinutes(medianResponse)}<span class="metric-unit">min</span>`;
+            document.getElementById('metric-fast-replies').innerHTML = `${fastReplies.toFixed(1)}<span class="metric-unit">%</span>`;
+            document.getElementById('metric-slow-replies').innerHTML = `${slowReplies.toFixed(1)}<span class="metric-unit">%</span>`;
+            document.getElementById('metric-p95-response').innerHTML = `${formatMinutes(p95Response)}<span class="metric-unit">min</span>`;
+            document.getElementById('metric-convos-analyzed').textContent = fmt(current.convosAnalyzed);
+
+            // Deltas (inverse=true for time metrics - lower is better)
+            const avgDelta = formatDelta(avgResponse, prevAvg, true);
+            const medianDelta = formatDelta(medianResponse, prevMedian, true);
+            const fastDelta = formatDelta(fastReplies, prevFast, false); // higher is better
+            const slowDelta = formatDelta(slowReplies, prevSlow, true); // lower is better
+            const p95Delta = formatDelta(p95Response, prevP95, true);
+            const convosDelta = formatDelta(current.convosAnalyzed, prevConvos, false);
+
+            document.getElementById('metric-avg-response-delta').textContent = avgDelta.text;
+            document.getElementById('metric-avg-response-delta').className = `metric-delta ${avgDelta.class}`;
+            document.getElementById('metric-median-response-delta').textContent = medianDelta.text;
+            document.getElementById('metric-median-response-delta').className = `metric-delta ${medianDelta.class}`;
+            document.getElementById('metric-fast-replies-delta').textContent = fastDelta.text;
+            document.getElementById('metric-fast-replies-delta').className = `metric-delta ${fastDelta.class}`;
+            document.getElementById('metric-slow-replies-delta').textContent = slowDelta.text;
+            document.getElementById('metric-slow-replies-delta').className = `metric-delta ${slowDelta.class}`;
+            document.getElementById('metric-p95-response-delta').textContent = p95Delta.text;
+            document.getElementById('metric-p95-response-delta').className = `metric-delta ${p95Delta.class}`;
+            document.getElementById('metric-convos-analyzed-delta').textContent = convosDelta.text;
+            document.getElementById('metric-convos-analyzed-delta').className = `metric-delta ${convosDelta.class}`;
+
+            // Response time distribution chart
+            const buckets = {
+                '<1 min': rt.filter(t => t < 1).length,
+                '1-5 min': rt.filter(t => t >= 1 && t < 5).length,
+                '5-15 min': rt.filter(t => t >= 5 && t < 15).length,
+                '15-30 min': rt.filter(t => t >= 15 && t < 30).length,
+                '30-60 min': rt.filter(t => t >= 30 && t < 60).length,
+                '1-2 hr': rt.filter(t => t >= 60 && t < 120).length,
+                '2-4 hr': rt.filter(t => t >= 120 && t < 240).length,
+                '4+ hr': rt.filter(t => t >= 240).length
+            };
+
+            if (charts.responseDist) charts.responseDist.destroy();
+            charts.responseDist = new Chart(document.getElementById('chart-response-dist'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(buckets),
+                    datasets: [{
+                        label: 'Replies',
+                        data: Object.values(buckets),
+                        backgroundColor: ['#C7F88A', '#C7F88A', '#79E2FF', '#79E2FF', '#FFD93D', '#FFD93D', '#FF6B6B', '#FF6B6B']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // Response time by rep
+            const repData = Object.entries(current.responseTimesByRep)
+                .map(([name, times]) => ({
+                    name: name.split(' ')[0],
+                    avg: times.reduce((a, b) => a + b, 0) / times.length,
+                    count: times.length
+                }))
+                .sort((a, b) => a.avg - b.avg)
+                .slice(0, 8);
+
+            if (charts.responseByRep) charts.responseByRep.destroy();
+            charts.responseByRep = new Chart(document.getElementById('chart-response-by-rep'), {
+                type: 'bar',
+                data: {
+                    labels: repData.map(d => d.name),
+                    datasets: [{
+                        label: 'Avg Response (min)',
+                        data: repData.map(d => d.avg),
+                        backgroundColor: repData.map(d => d.avg < 15 ? '#C7F88A' : (d.avg < 60 ? '#79E2FF' : '#FF6B6B'))
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // Response time trend by day
+            const trendData = Object.entries(current.responseTimesByDay)
+                .map(([day, times]) => ({
+                    day,
+                    avg: times.reduce((a, b) => a + b, 0) / times.length
+                }))
+                .sort((a, b) => a.day.localeCompare(b.day))
+                .slice(-30);
+
+            if (charts.responseTrend) charts.responseTrend.destroy();
+            charts.responseTrend = new Chart(document.getElementById('chart-response-trend'), {
+                type: 'line',
+                data: {
+                    labels: trendData.map(d => new Date(d.day).toLocaleDateString('en', { month: 'short', day: 'numeric' })),
+                    datasets: [{
+                        label: 'Avg Response (min)',
+                        data: trendData.map(d => d.avg),
+                        borderColor: '#79E2FF',
+                        backgroundColor: 'rgba(121,226,255,0.2)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            // Team table with response metrics
+            const teamMetrics = Object.entries(current.responseTimesByRep)
+                .map(([name, times]) => ({
+                    name,
+                    avg: times.reduce((a, b) => a + b, 0) / times.length,
+                    median: percentile(times, 50),
+                    fast: (times.filter(t => t < 5).length / times.length) * 100,
+                    slow: (times.filter(t => t > 60).length / times.length) * 100,
+                    count: times.length
+                }))
+                .sort((a, b) => a.avg - b.avg);
+
+            document.getElementById('metrics-tbody').innerHTML = teamMetrics.map((t, i) => {
+                const rating = t.avg < 10 ? '⭐⭐⭐' : (t.avg < 30 ? '⭐⭐' : '⭐');
+                const avgClass = t.avg < 15 ? 'good' : (t.avg > 60 ? 'bad' : '');
+                return `<tr>
+                    <td class="rank">${i + 1}</td>
+                    <td class="name">${t.name}</td>
+                    <td class="${avgClass}">${formatMinutes(t.avg)} min</td>
+                    <td>${formatMinutes(t.median)} min</td>
+                    <td style="color: var(--day)">${t.fast.toFixed(0)}%</td>
+                    <td style="color: var(--hot)">${t.slow.toFixed(0)}%</td>
+                    <td>${rating}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--gray-600);">No data</td></tr>';
+        }
+
+        function updateContractors(data) {
+            // Contractors = уникальные контакты по chat_full_name (исключая сотрудников)
+            // Считаем только входящие сообщения (received) - это реальное общение с внешними людьми
+            const contactMap = {};
+
+            data.forEach(d => {
+                // Используем chat_full_name как имя контакта/группы
+                const contactName = d.chat_full_name;
+                if (!contactName) return;
+
+                // Skip excluded contacts (employees)
+                if (EXCLUDED_CONTACTS.some(exc => contactName.toLowerCase().includes(exc.toLowerCase()))) return;
+
+                // Skip groups (only show individual contacts)
+                if (isGroup(d)) return;
+
+                // Skip if it looks like only a phone number
+                if (/^\+?\d[\d\s\-]{5,}$/.test(contactName.trim())) return;
+
+                if (!contactMap[contactName]) contactMap[contactName] = { name: contactName, sent: 0, received: 0 };
+                d.message_direction === 'sent' ? contactMap[contactName].sent++ : contactMap[contactName].received++;
+            });
+
+            const contractors = Object.values(contactMap)
+                .sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
+
+            document.getElementById('contractors-count').textContent = `${contractors.length} contacts`;
+
+            document.getElementById('contractors-tbody').innerHTML = contractors.length ? contractors.slice(0, 100).map((c, i) => {
+                const total = c.sent + c.received;
+                const badge = total > 50 ? 'badge-hot' : (total > 20 ? 'badge-warm' : 'badge-cool');
+                const activity = total > 50 ? 'Frequent' : (total > 20 ? 'Regular' : 'Occasional');
+                return `<tr>
+                    <td class="rank">${i + 1}</td>
+                    <td class="name">${c.name}</td>
+                    <td class="count">${fmt(total)}</td>
+                    <td>${fmt(c.sent)}</td>
+                    <td>${fmt(c.received)}</td>
+                    <td><span class="badge ${badge}">${activity}</span></td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gray-600);padding:40px;">No contacts found</td></tr>';
+        }
+
+        function getWeekNumber(d) {
+            const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const dayNum = date.getUTCDay() || 7;
+            date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+            return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+        }
+
+        // Применить фильтры и обновить UI (без загрузки данных)
+        function refresh() {
+            // Calculate previous period for comparison
+            calculatePreviousPeriod();
+
+            filteredData = applyFilters();
+
+            console.log(`=== REFRESH ===`);
+            console.log(`Groups Only Mode: ${groupsOnlyMode}`);
+            console.log(`Raw data: ${rawData.length} messages`);
+            console.log(`Filtered: ${filteredData.length} messages`);
+            console.log(`Previous period: ${previousPeriodData.length} messages`);
+
+            // Debug: если 0 сообщений и groupsOnlyMode, проверим есть ли группы вообще
+            if (filteredData.length === 0 && groupsOnlyMode) {
+                const groupsInRaw = rawData.filter(d => isGroup(d));
+                console.log(`WARNING: 0 filtered but ${groupsInRaw.length} groups in raw data`);
+                if (groupsInRaw.length === 0) {
+                    console.log('No groups (is_group=true) found in database!');
+                }
+            }
+
+            updateOverview(filteredData);
+            updateLoad(filteredData);
+            updateMetrics(filteredData);
+            updateGroups(filteredData);
+            updateContractors(filteredData);
+        }
+
+        async function init() {
+            try {
+                setStatus('Connecting to Supabase...');
+
+                // Загружаем ВСЕ данные один раз
+                rawData = await loadAllData();
+                dataLoaded = true;
+
+                setStatus(`Loaded ${rawData.length.toLocaleString()} messages`);
+                console.log(`Total messages loaded: ${rawData.length}`);
+
+                // DEBUG: показываем статистику по группам
+                if (rawData.length > 0) {
+                    const groupMessages = rawData.filter(d => isGroup(d));
+                    const dmMessages = rawData.filter(d => !isGroup(d));
+
+                    console.log('=== CHAT STATISTICS ===');
+                    console.log('Total messages:', rawData.length);
+                    console.log('Messages in groups (is_group=true):', groupMessages.length);
+                    console.log('Messages in DMs (is_group=false):', dmMessages.length);
+                    console.log('Groups Only Mode:', groupsOnlyMode);
+                }
+
+                // Загружаем список сотрудников
+                await loadReps();
+
+                // Применяем фильтры и показываем
+                refresh();
+
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('app').style.display = 'block';
+            } catch (e) {
+                console.error('Init error:', e);
+                const errorMsg = e?.message || String(e) || 'Unknown error';
+                setStatus('Error: ' + errorMsg);
+            }
+        }
+
+        // Focus password input
+        document.getElementById('password-input').focus();
+    </script>
+</body>
+</html>
