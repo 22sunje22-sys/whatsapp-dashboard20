@@ -1567,7 +1567,7 @@
                     contactMap[senderName] = { name: senderName, total: 0, inGroups: 0, inDMs: 0 };
                 }
                 contactMap[senderName].total++;
-                chatIsGroup ? contactMap[senderName].inGroups++ : contactMap[senderName].inDMs++;
+                chatIsGroup ? contactMap[senderName].inGroups++ : contactMap[senderName].inDMs++; 
             });
 
             const contractors = Object.values(contactMap)
