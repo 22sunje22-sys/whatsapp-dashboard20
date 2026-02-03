@@ -648,7 +648,7 @@
                     <div class="team-title">🏆 Team Performance</div>
                     <table class="team-table">
                         <thead>
-                            <tr><th>Name</th><th>Messages</th><th>Sent</th><th>Received</th><th>Convos</th><th>Depth</th></tr>
+                            <tr><th>Name</th><th>Messages</th><th>Sent</th><th>Received</th><th>Groups</th><th>DMs</th><th>Convos</th><th>Depth</th><th>Avg Response</th></tr>
                         </thead>
                         <tbody id="team-tbody"></tbody>
                     </table>
@@ -774,7 +774,7 @@
                     </div>
                     <table class="data-table">
                         <thead>
-                            <tr><th>#</th><th>Group Name</th><th>Messages</th><th>Sent</th><th>Received</th><th>Activity</th></tr>
+                            <tr><th>#</th><th>Group Name</th><th>Team</th><th>Messages</th><th>Sent</th><th>Received</th><th>Activity</th></tr>
                         </thead>
                         <tbody id="groups-tbody"></tbody>
                     </table>
@@ -790,7 +790,7 @@
                     </div>
                     <table class="data-table">
                         <thead>
-                            <tr><th>#</th><th>Contact</th><th>Messages</th><th>Sent</th><th>Received</th><th>Activity</th></tr>
+                            <tr><th>#</th><th>Contact</th><th>Messages</th><th>In Groups</th><th>In DMs</th><th>Activity</th></tr>
                         </thead>
                         <tbody id="contractors-tbody"></tbody>
                     </table>
@@ -804,8 +804,21 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3ZnRsa2Z2dGdsbnVneHN5amNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDAxODUsImV4cCI6MjA2MzIxNjE4NX0.9Cn1xahmF8q6pbbWQHNyQSc9fZkVvJaqTzMRZCtmb9E';
         const PASSWORD = 'platinumlist2024';
 
-        // Excluded employees from contractors
-        const EXCLUDED_CONTACTS = ['Cosmin Ivan', 'cosmin ivan', 'COSMIN IVAN'];
+        // Excluded employees from contractors (our team + Cosmin + Daria variations)
+        const TEAM_EMAILS = [
+            'paul.joseph@platinumlist.net',
+            'alexandra.gorokhova@platinumlist.net',
+            'julia.kolesnikova@platinumlist.net',
+            'ghada.abusultan@platinumlist.net',
+            'roshanka.james@platinumlist.net',
+            'rufina.akhmetova@platinumlist.net'
+        ];
+        const EXCLUDED_NAMES = [
+            'Cosmin Ivan', 'cosmin', 'Cosmin',
+            'Daria', 'daria', 'DARIA', 'Darya', 'darya', 'DARYA', 'Дарья', 'дарья',
+            'Paul Joseph', 'Alexandra Gorokhova', 'Julia Kolesnikova',
+            'Ghada Abu Sultan', 'Roshanka James', 'Rufina Akhmetova'
+        ];
 
         const { createClient } = supabase;
         const db = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1129,11 +1142,47 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { stacked: true, beginAtZero: true }, x: { stacked: true } } }
             });
 
+            // Team Performance - ALWAYS use ALL data (rawData) to show all employees
+            // Apply only date and rep filters, NOT groups filter
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            const rep = document.getElementById('repFilter').value;
+
+            let teamData = rawData;
+            if (dateFrom) {
+                const from = new Date(dateFrom + 'T00:00:00');
+                teamData = teamData.filter(d => d.message_timestamp && new Date(d.message_timestamp) >= from);
+            }
+            if (dateTo) {
+                const to = new Date(dateTo + 'T23:59:59');
+                teamData = teamData.filter(d => d.message_timestamp && new Date(d.message_timestamp) <= to);
+            }
+            if (rep) {
+                teamData = teamData.filter(d => d.account_email === rep);
+            }
+            // NOTE: Groups filter is NOT applied here - we want ALL employees
+
+            // Calculate response times for team data
+            const { responseTimesByRep } = calculateResponseTimes(teamData);
+
             const teamMap = {};
-            data.forEach(d => {
+            teamData.forEach(d => {
                 if (!d.account_email) return;
-                if (!teamMap[d.account_email]) teamMap[d.account_email] = { name: d.account_full_name || d.account_email.split('@')[0], sent: 0, received: 0, chats: new Set() };
+                if (!teamMap[d.account_email]) teamMap[d.account_email] = {
+                    name: d.account_full_name || d.account_email.split('@')[0],
+                    sent: 0,
+                    received: 0,
+                    groupMsgs: 0,
+                    dmMsgs: 0,
+                    chats: new Set()
+                };
                 d.message_direction === 'sent' ? teamMap[d.account_email].sent++ : teamMap[d.account_email].received++;
+                // Count group vs DM messages
+                if (d.is_group === true) {
+                    teamMap[d.account_email].groupMsgs++;
+                } else {
+                    teamMap[d.account_email].dmMsgs++;
+                }
                 if (d.chat_id) teamMap[d.account_email].chats.add(d.chat_id);
             });
             const team = Object.values(teamMap).sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
@@ -1151,13 +1200,21 @@
             document.getElementById('team-tbody').innerHTML = team.map(t => {
                 const total = t.sent + t.received;
                 const depth = (total / (t.chats.size || 1)).toFixed(1);
+                // Get average response time for this team member
+                const repTimes = responseTimesByRep[t.name] || [];
+                const avgResponse = repTimes.length > 0 ? repTimes.reduce((a,b) => a+b, 0) / repTimes.length : null;
+                const avgResponseText = avgResponse !== null ? formatMinutes(avgResponse) + 'm' : '-';
+                const responseClass = avgResponse !== null && avgResponse < 15 ? 'good' : '';
                 return `<tr>
                     <td class="name">${t.name}</td>
                     <td>${fmt(total)}</td>
                     <td>${fmt(t.sent)}</td>
                     <td>${fmt(t.received)}</td>
+                    <td>${fmt(t.groupMsgs)}</td>
+                    <td>${fmt(t.dmMsgs)}</td>
                     <td>${t.chats.size}</td>
                     <td class="${depth >= 15 ? 'good' : ''}">${depth}</td>
+                    <td class="${responseClass}">${avgResponseText}</td>
                 </tr>`;
             }).join('');
         }
@@ -1279,8 +1336,13 @@
 
                 // Используем chat_full_name как основное имя
                 const name = d.chat_full_name || String(chatId).split('@')[0] || 'Unknown';
-                if (!groupMap[chatId]) groupMap[chatId] = { name, sent: 0, received: 0 };
+                if (!groupMap[chatId]) groupMap[chatId] = { name, sent: 0, received: 0, teamMembers: new Set() };
                 d.message_direction === 'sent' ? groupMap[chatId].sent++ : groupMap[chatId].received++;
+
+                // Track team members who participate in this chat (only from our team)
+                if (d.account_full_name && TEAM_EMAILS.includes(d.account_email)) {
+                    groupMap[chatId].teamMembers.add(d.account_full_name.split(' ')[0]); // First name only
+                }
             });
 
             const groups = Object.values(groupMap).sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
@@ -1291,15 +1353,17 @@
                 const total = g.sent + g.received;
                 const badge = total > 100 ? 'badge-hot' : (total > 50 ? 'badge-warm' : 'badge-cool');
                 const activity = total > 100 ? 'Very Active' : (total > 50 ? 'Active' : 'Normal');
+                const teamList = Array.from(g.teamMembers).join(', ') || '-';
                 return `<tr>
                     <td class="rank">${i + 1}</td>
                     <td class="name">${g.name}</td>
+                    <td style="font-size:11px;color:var(--primary)">${teamList}</td>
                     <td class="count">${fmt(total)}</td>
                     <td>${fmt(g.sent)}</td>
                     <td>${fmt(g.received)}</td>
                     <td><span class="badge ${badge}">${activity}</span></td>
                 </tr>`;
-            }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gray-600);padding:40px;">No chats found</td></tr>';
+            }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--gray-600);padding:40px;">No chats found</td></tr>';
         }
 
         function updateMetrics(data) {
@@ -1477,43 +1541,49 @@
         }
 
         function updateContractors(data) {
-            // Contractors = уникальные контакты по chat_full_name (исключая сотрудников)
-            // Считаем только входящие сообщения (received) - это реальное общение с внешними людьми
+            // Contractors = внешние контакты, которые пишут в чаты (исключая нашу команду + Cosmin + Daria)
+            // Собираем уникальных отправителей входящих сообщений
+
             const contactMap = {};
 
             data.forEach(d => {
-                // Используем chat_full_name как имя контакта/группы
-                const contactName = d.chat_full_name;
-                if (!contactName) return;
+                // Только входящие сообщения (от внешних людей к нам)
+                if (d.message_direction !== 'received') return;
 
-                // Skip excluded contacts (employees)
-                if (EXCLUDED_CONTACTS.some(exc => contactName.toLowerCase().includes(exc.toLowerCase()))) return;
+                // Получаем имя отправителя (sender) - это внешний контакт
+                const senderName = d.sender_full_name || d.sender_phone;
+                if (!senderName) return;
 
-                // Skip groups (only show individual contacts)
-                if (isGroup(d)) return;
+                // Skip excluded names (our team + Cosmin + Daria)
+                if (EXCLUDED_NAMES.some(exc => senderName.toLowerCase().includes(exc.toLowerCase()))) return;
 
                 // Skip if it looks like only a phone number
-                if (/^\+?\d[\d\s\-]{5,}$/.test(contactName.trim())) return;
+                if (/^\+?\d[\d\s\-]{5,}$/.test(senderName.trim())) return;
 
-                if (!contactMap[contactName]) contactMap[contactName] = { name: contactName, sent: 0, received: 0 };
-                d.message_direction === 'sent' ? contactMap[contactName].sent++ : contactMap[contactName].received++;
+                // Track isGroup for this sender's context
+                const chatIsGroup = isGroup(d);
+
+                if (!contactMap[senderName]) {
+                    contactMap[senderName] = { name: senderName, total: 0, inGroups: 0, inDMs: 0 };
+                }
+                contactMap[senderName].total++;
+                chatIsGroup ? contactMap[senderName].inGroups++ : contactMap[senderName].inDMs++;
             });
 
             const contractors = Object.values(contactMap)
-                .sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
+                .sort((a,b) => b.total - a.total);
 
             document.getElementById('contractors-count').textContent = `${contractors.length} contacts`;
 
             document.getElementById('contractors-tbody').innerHTML = contractors.length ? contractors.slice(0, 100).map((c, i) => {
-                const total = c.sent + c.received;
-                const badge = total > 50 ? 'badge-hot' : (total > 20 ? 'badge-warm' : 'badge-cool');
-                const activity = total > 50 ? 'Frequent' : (total > 20 ? 'Regular' : 'Occasional');
+                const badge = c.total > 50 ? 'badge-hot' : (c.total > 20 ? 'badge-warm' : 'badge-cool');
+                const activity = c.total > 50 ? 'Frequent' : (c.total > 20 ? 'Regular' : 'Occasional');
                 return `<tr>
                     <td class="rank">${i + 1}</td>
                     <td class="name">${c.name}</td>
-                    <td class="count">${fmt(total)}</td>
-                    <td>${fmt(c.sent)}</td>
-                    <td>${fmt(c.received)}</td>
+                    <td class="count">${fmt(c.total)}</td>
+                    <td>${fmt(c.inGroups)}</td>
+                    <td>${fmt(c.inDMs)}</td>
                     <td><span class="badge ${badge}">${activity}</span></td>
                 </tr>`;
             }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--gray-600);padding:40px;">No contacts found</td></tr>';
