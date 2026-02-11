@@ -582,8 +582,6 @@
                         <div class="tab active" data-tab="overview">Overview</div>
                         <div class="tab" data-tab="load">Load</div>
                         <div class="tab" data-tab="metrics">Metrics</div>
-                        <div class="tab" data-tab="groups">Groups</div>
-                        <div class="tab" data-tab="contractors">Contractors</div>
                     </div>
                 </div>
                 <div class="filters">
@@ -1567,7 +1565,7 @@
                     contactMap[senderName] = { name: senderName, total: 0, inGroups: 0, inDMs: 0 };
                 }
                 contactMap[senderName].total++;
-                chatIsGroup ? contactMap[senderName].inGroups++ : contactMap[senderName].inDMs++; 
+                chatIsGroup ? contactMap[senderName].inGroups++ : contactMap[senderName].inDMs++;
             });
 
             const contractors = Object.values(contactMap)
