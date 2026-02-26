@@ -396,6 +396,11 @@
         .team-table td { padding: 8px; border-bottom: 1px solid rgba(121,226,255,0.05); }
         .team-table .name { font-weight: 600; }
         .team-table .good { color: var(--day); }
+        .role-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; }
+        .role-sales { background: rgba(121,226,255,0.15); color: #79E2FF; }
+        .role-ticketing { background: rgba(199,248,138,0.15); color: #C7F88A; }
+        .role-management { background: rgba(255,217,61,0.15); color: #FFD93D; }
+        .role-booking { background: rgba(155,89,182,0.15); color: #9B59B6; }
 
         /* LOAD TAB CHARTS */
         .load-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -646,7 +651,7 @@
                     <div class="team-title">🏆 Team Performance</div>
                     <table class="team-table">
                         <thead>
-                            <tr><th>Name</th><th>Messages</th><th>Sent</th><th>Received</th><th>Groups</th><th>DMs</th><th>Convos</th><th>Depth</th><th>Avg Response</th></tr>
+                            <tr><th>Name</th><th>Role</th><th>Messages</th><th>Sent</th><th>Received</th><th>Groups</th><th>DMs</th><th>Convos</th><th>Depth</th><th>Avg Response</th></tr>
                         </thead>
                         <tbody id="team-tbody"></tbody>
                     </table>
@@ -802,7 +807,7 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3ZnRsa2Z2dGdsbnVneHN5amNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDAxODUsImV4cCI6MjA2MzIxNjE4NX0.9Cn1xahmF8q6pbbWQHNyQSc9fZkVvJaqTzMRZCtmb9E';
         const PASSWORD = 'platinumlist2024';
 
-        // Excluded employees from contractors (our team + Cosmin + Daria variations)
+        // Team members with connected WhatsApp accounts in TimelinesAI
         const TEAM_EMAILS = [
             'paul.joseph@platinumlist.net',
             'alexandra.gorokhova@platinumlist.net',
@@ -810,16 +815,52 @@
             'ghada.abusultan@platinumlist.net',
             'roshanka.james@platinumlist.net',
             'rufina.akhmetova@platinumlist.net',
+            'kamilla.abdibekova@platinumlist.net',
             'booking@platinumlist.net',
             'arif@platinumlist.net'
         ];
+
+        // Team roles/groups
+        const TEAM_ROLES = {
+            'paul.joseph@platinumlist.net': 'Sales',
+            'alexandra.gorokhova@platinumlist.net': 'Sales',
+            'julia.kolesnikova@platinumlist.net': 'Sales',
+            'ghada.abusultan@platinumlist.net': 'Sales',
+            'roshanka.james@platinumlist.net': 'Sales',
+            'rufina.akhmetova@platinumlist.net': 'Sales',
+            'kamilla.abdibekova@platinumlist.net': 'Sales',
+            'booking@platinumlist.net': 'Booking',
+            'arif@platinumlist.net': 'Ticketing'
+        };
+
+        // Names to exclude from contractor/contact lists (all internal employees)
         const EXCLUDED_NAMES = [
-            'Cosmin Ivan', 'cosmin', 'Cosmin',
-            'Daria', 'daria', 'DARIA', 'Darya', 'darya', 'DARYA', 'Дарья', 'дарья',
+            // Sales managers (connected accounts)
             'Paul Joseph', 'Alexandra Gorokhova', 'Julia Kolesnikova',
             'Ghada Abu Sultan', 'Roshanka James', 'Rufina Akhmetova',
-            'Platinumlist Attractions', 'Mohammed Arif'
+            'Kamilla Abdibekova', 'Kamilla',
+            'Platinumlist Attractions', 'Mohammed Arif',
+            // Management
+            'Cosmin Ivan', 'cosmin', 'Cosmin',
+            // HR - Daria (also fully excluded from data at load time)
+            'Daria', 'daria', 'DARIA', 'Daria (2)', 'Darya', 'darya', 'DARYA', 'Дарья', 'дарья',
+            // Ticketing managers (not connected but appear in chats/groups)
+            'Taha Gulbadan', 'Taha - Platinumlist', 'Taha',
+            'Toufiq Rahman', 'Toufiiq', 'Toufiq Platinumlist', 'Toufiq',
+            'Ahmed Hussain', 'Ahmed PL', 'Ahmed Chango', 'Ahmed',
+            'Asmaa Hussein', 'Asmaa Hussein (1)', 'Asmaa',
+            'Sabeq', 'Akshay Darde', 'Akshay',
+            'Ali Al Bukhari', 'Ali',
+            'Aleksei Duranichev', 'Alexei P L P EVENTS LLC', 'Aleksei', 'Alexei',
+            'Ash', 'Stephanie'
         ];
+
+        // Daria filter - completely remove all conversations involving Daria (HR)
+        const DARIA_PATTERNS = ['daria', 'darya', 'дарья'];
+        function isDariaMessage(d) {
+            const sender = (d.sender_full_name || '').toLowerCase();
+            return DARIA_PATTERNS.some(p => sender.includes(p));
+        }
 
         const { createClient } = supabase;
         const db = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1201,6 +1242,8 @@
                 if (!d.account_email) return;
                 if (!teamMap[d.account_email]) teamMap[d.account_email] = {
                     name: d.account_full_name || d.account_email.split('@')[0],
+                    email: d.account_email,
+                    role: TEAM_ROLES[d.account_email] || '-',
                     sent: 0,
                     received: 0,
                     groupMsgs: 0,
@@ -1208,7 +1251,6 @@
                     chats: new Set()
                 };
                 d.message_direction === 'sent' ? teamMap[d.account_email].sent++ : teamMap[d.account_email].received++;
-                // Count group vs DM messages
                 if (d.is_group === true) {
                     teamMap[d.account_email].groupMsgs++;
                 } else {
@@ -1236,8 +1278,10 @@
                 const avgResponse = repTimes.length > 0 ? repTimes.reduce((a,b) => a+b, 0) / repTimes.length : null;
                 const avgResponseText = avgResponse !== null ? formatMinutes(avgResponse, true) : '-';
                 const responseClass = avgResponse !== null && avgResponse < 15 ? 'good' : '';
+                const roleBadge = t.role !== '-' ? `<span class="role-badge role-${t.role.toLowerCase()}">${t.role}</span>` : '-';
                 return `<tr>
                     <td class="name">${t.name}</td>
+                    <td>${roleBadge}</td>
                     <td>${fmt(total)}</td>
                     <td>${fmt(t.sent)}</td>
                     <td>${fmt(t.received)}</td>
@@ -1663,6 +1707,24 @@
 
                 // Загружаем ВСЕ данные один раз
                 rawData = await loadAllData();
+
+                // Exclude Daria (HR) - remove all her conversations completely
+                const beforeFilter = rawData.length;
+                // Find all chat_ids where Daria is involved
+                const dariaChatIds = new Set();
+                rawData.forEach(d => {
+                    if (isDariaMessage(d) && !d.is_group) {
+                        dariaChatIds.add(d.chat_id);
+                    }
+                });
+                // Remove all messages from Daria's DM chats + her messages in groups
+                rawData = rawData.filter(d => {
+                    if (dariaChatIds.has(d.chat_id)) return false; // entire DM chat with Daria
+                    if (isDariaMessage(d)) return false; // her messages in groups
+                    return true;
+                });
+                console.log(`Daria filter: removed ${beforeFilter - rawData.length} messages (${dariaChatIds.size} DM chats)`);
+
                 dataLoaded = true;
 
                 setStatus(`Loaded ${rawData.length.toLocaleString()} messages`);
