@@ -855,6 +855,35 @@
             'Ash', 'Stephanie'
         ];
 
+        // Non-connected employees (no TimelinesAI account, but appear as senders)
+        // Key = display name, value = { patterns: [lowercase match strings], role: string }
+        const NON_CONNECTED_EMPLOYEES = {
+            'Cosmin Ivan': { patterns: ['cosmin ivan', 'cosmin'], role: 'Management' },
+            'Taha Gulbadan': { patterns: ['taha gulbadan', 'taha - platinumlist', 'taha'], role: 'Ticketing' },
+            'Toufiq Rahman': { patterns: ['toufiq rahman', 'toufiiq', 'toufiq platinumlist', 'toufiq'], role: 'Ticketing' },
+            'Ahmed Hussain': { patterns: ['ahmed hussain', 'ahmed pl', 'ahmed chango'], role: 'Ticketing' },
+            'Asmaa Hussein': { patterns: ['asmaa hussein', 'asmaa'], role: 'Ticketing' },
+            'Ash': { patterns: ['ash'], role: 'Ticketing' },
+            'Sabeq': { patterns: ['sabeq'], role: 'Ticketing' },
+            'Akshay Darde': { patterns: ['akshay darde', 'akshay'], role: 'Ticketing' },
+            'Ali Al Bukhari': { patterns: ['ali al bukhari'], role: 'Ticketing' },
+            'Aleksei Duranichev': { patterns: ['aleksei duranichev', 'alexei p l p events', 'aleksei', 'alexei'], role: 'Ticketing' },
+        };
+
+        // Match a sender name to a non-connected employee
+        function matchNonConnectedEmployee(senderName) {
+            if (!senderName) return null;
+            const lower = senderName.toLowerCase();
+            for (const [displayName, config] of Object.entries(NON_CONNECTED_EMPLOYEES)) {
+                // Match longest patterns first to avoid false positives (e.g. "Ali" matching "Ali Al Bukhari")
+                const sorted = [...config.patterns].sort((a, b) => b.length - a.length);
+                for (const pattern of sorted) {
+                    if (lower === pattern || lower.includes(pattern)) return displayName;
+                }
+            }
+            return null;
+        }
+
         // Daria filter - completely remove all conversations involving Daria (HR)
         const DARIA_PATTERNS = ['daria', 'darya', 'дарья'];
         function isDariaMessage(d) {
@@ -1237,6 +1266,7 @@
             // Calculate response times for team data
             const { responseTimesByRep } = calculateResponseTimes(teamData);
 
+            // Connected employees (have TimelinesAI account)
             const teamMap = {};
             teamData.forEach(d => {
                 if (!d.account_email) return;
@@ -1258,14 +1288,42 @@
                 }
                 if (d.chat_id) teamMap[d.account_email].chats.add(d.chat_id);
             });
-            const team = Object.values(teamMap).sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
+
+            // Non-connected employees (appear as senders in other people's chats/groups)
+            const ncMap = {};
+            teamData.forEach(d => {
+                if (d.message_direction !== 'received') return;
+                const employeeName = matchNonConnectedEmployee(d.sender_full_name);
+                if (!employeeName) return;
+                const key = 'nc_' + employeeName;
+                if (!ncMap[key]) ncMap[key] = {
+                    name: employeeName,
+                    email: null,
+                    role: NON_CONNECTED_EMPLOYEES[employeeName].role,
+                    sent: 0,  // their "sent" = messages they sent (which we see as "received")
+                    received: 0,
+                    groupMsgs: 0,
+                    dmMsgs: 0,
+                    chats: new Set()
+                };
+                ncMap[key].sent++; // from their perspective they sent this
+                if (d.is_group === true) {
+                    ncMap[key].groupMsgs++;
+                } else {
+                    ncMap[key].dmMsgs++;
+                }
+                if (d.chat_id) ncMap[key].chats.add(d.chat_id);
+            });
+
+            const team = [...Object.values(teamMap), ...Object.values(ncMap)]
+                .sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
 
             if (charts.team) charts.team.destroy();
             charts.team = new Chart(document.getElementById('chart-team'), {
                 type: 'doughnut',
                 data: {
                     labels: team.map(t => t.name.split(' ')[0]),
-                    datasets: [{ data: team.map(t => t.sent + t.received), backgroundColor: ['#79E2FF', '#C7F88A', '#00A5D3', '#FFD93D', '#FF6B6B', '#9B59B6', '#E91E63', '#4CAF50', '#FF9800', '#607D8B', '#795548', '#CDDC39'] }]
+                    datasets: [{ data: team.map(t => t.sent + t.received), backgroundColor: ['#79E2FF', '#C7F88A', '#00A5D3', '#FFD93D', '#FF6B6B', '#9B59B6', '#E91E63', '#4CAF50', '#FF9800', '#607D8B', '#795548', '#CDDC39', '#00BCD4', '#8BC34A', '#FF5722', '#3F51B5', '#009688', '#FFC107', '#673AB7', '#2196F3'] }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
             });
