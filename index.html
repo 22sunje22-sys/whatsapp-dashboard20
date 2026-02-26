@@ -972,7 +972,15 @@
         }
 
         // Format minutes nicely
-        function formatMinutes(mins) {
+        function formatMinutes(mins, includeUnit = false) {
+            if (includeUnit) {
+                if (mins < 1) return '<1 min';
+                if (mins < 60) return Math.round(mins) + ' min';
+                const h = Math.floor(mins / 60);
+                const m = Math.round(mins % 60);
+                if (mins < 1440) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                return Math.round(mins / 1440) + 'd';
+            }
             if (mins < 1) return '<1';
             if (mins < 60) return Math.round(mins).toString();
             if (mins < 1440) return Math.round(mins / 60) + 'h';
@@ -1022,9 +1030,31 @@
         document.getElementById('dateFrom').value = '';
 
         async function loadReps() {
-            const { data } = await db.from('whatsapp_messages').select('account_email, account_full_name').limit(500);
+            // Load enough rows to find ALL unique reps
+            let allReps = [];
+            let offset = 0;
+            const pageSize = 1000;
+            let hasMore = true;
             const unique = {};
-            data?.forEach(d => { if (d.account_email && !unique[d.account_email]) unique[d.account_email] = d.account_full_name || d.account_email.split('@')[0]; });
+
+            while (hasMore) {
+                const { data } = await db.from('whatsapp_messages')
+                    .select('account_email, account_full_name')
+                    .range(offset, offset + pageSize - 1);
+
+                if (data && data.length > 0) {
+                    data.forEach(d => {
+                        if (d.account_email && !unique[d.account_email]) {
+                            unique[d.account_email] = d.account_full_name || d.account_email.split('@')[0];
+                        }
+                    });
+                    offset += pageSize;
+                    hasMore = data.length === pageSize;
+                } else {
+                    hasMore = false;
+                }
+            }
+
             const sel = document.getElementById('repFilter');
             Object.entries(unique).sort((a,b) => a[1].localeCompare(b[1])).forEach(([email, name]) => {
                 sel.innerHTML += `<option value="${email}">${name}</option>`;
@@ -1192,8 +1222,8 @@
             charts.team = new Chart(document.getElementById('chart-team'), {
                 type: 'doughnut',
                 data: {
-                    labels: team.slice(0, 6).map(t => t.name.split(' ')[0]),
-                    datasets: [{ data: team.slice(0, 6).map(t => t.sent + t.received), backgroundColor: ['#79E2FF', '#C7F88A', '#00A5D3', '#FFD93D', '#FF6B6B', '#9B59B6'] }]
+                    labels: team.map(t => t.name.split(' ')[0]),
+                    datasets: [{ data: team.map(t => t.sent + t.received), backgroundColor: ['#79E2FF', '#C7F88A', '#00A5D3', '#FFD93D', '#FF6B6B', '#9B59B6', '#E91E63', '#4CAF50', '#FF9800', '#607D8B', '#795548', '#CDDC39'] }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
             });
@@ -1204,7 +1234,7 @@
                 // Get average response time for this team member
                 const repTimes = responseTimesByRep[t.name] || [];
                 const avgResponse = repTimes.length > 0 ? repTimes.reduce((a,b) => a+b, 0) / repTimes.length : null;
-                const avgResponseText = avgResponse !== null ? formatMinutes(avgResponse) + 'm' : '-';
+                const avgResponseText = avgResponse !== null ? formatMinutes(avgResponse, true) : '-';
                 const responseClass = avgResponse !== null && avgResponse < 15 ? 'good' : '';
                 return `<tr>
                     <td class="name">${t.name}</td>
@@ -1405,11 +1435,11 @@
             }
 
             // Update UI
-            document.getElementById('metric-avg-response').innerHTML = `${formatMinutes(avgResponse)}<span class="metric-unit">min</span>`;
-            document.getElementById('metric-median-response').innerHTML = `${formatMinutes(medianResponse)}<span class="metric-unit">min</span>`;
+            document.getElementById('metric-avg-response').innerHTML = `${formatMinutes(avgResponse, true)}`;
+            document.getElementById('metric-median-response').innerHTML = `${formatMinutes(medianResponse, true)}`;
             document.getElementById('metric-fast-replies').innerHTML = `${fastReplies.toFixed(1)}<span class="metric-unit">%</span>`;
             document.getElementById('metric-slow-replies').innerHTML = `${slowReplies.toFixed(1)}<span class="metric-unit">%</span>`;
-            document.getElementById('metric-p95-response').innerHTML = `${formatMinutes(p95Response)}<span class="metric-unit">min</span>`;
+            document.getElementById('metric-p95-response').innerHTML = `${formatMinutes(p95Response, true)}`;
             document.getElementById('metric-convos-analyzed').textContent = fmt(current.convosAnalyzed);
 
             // Deltas (inverse=true for time metrics - lower is better)
@@ -1532,8 +1562,8 @@
                 return `<tr>
                     <td class="rank">${i + 1}</td>
                     <td class="name">${t.name}</td>
-                    <td class="${avgClass}">${formatMinutes(t.avg)} min</td>
-                    <td>${formatMinutes(t.median)} min</td>
+                    <td class="${avgClass}">${formatMinutes(t.avg, true)}</td>
+                    <td>${formatMinutes(t.median, true)}</td>
                     <td style="color: var(--day)">${t.fast.toFixed(0)}%</td>
                     <td style="color: var(--hot)">${t.slow.toFixed(0)}%</td>
                     <td>${rating}</td>
