@@ -1,0 +1,39 @@
+name: GA4 Daily Fetch
+
+on:
+  schedule:
+    # 3:00 UTC = 7:00 AM Dubai (UTC+4)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date to fetch (YYYY-MM-DD). Leave empty for yesterday.'
+        required: false
+        default: ''
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install google-analytics-data requests
+
+      - name: Run GA4 fetcher
+        env:
+          GA4_SERVICE_ACCOUNT_JSON: ${{ secrets.GA4_SERVICE_ACCOUNT_JSON }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          DATE="${{ github.event.inputs.date }}"
+          if [ -z "$DATE" ]; then
+            python ga4_to_supabase.py
+          else
+            python ga4_to_supabase.py "$DATE"
+          fi
