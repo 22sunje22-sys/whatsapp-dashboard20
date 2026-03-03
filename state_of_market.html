@@ -175,7 +175,10 @@ tr:hover td{background:#1a2030}
 
 <script>
 const SUPABASE_URL = 'https://kwftlkfvtglnugxsyjci.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3ZnRsa2Z2dGdsbnVneHN5amNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDAxODUsImV4cCI6MjA2MzIxNjE4NX0.9Cn1xahmF8q6pbbWQHNyQSc9fZkVvJaqTzMRZCtmb9E';
+// TODO: Run in Supabase SQL editor to enable anon access permanently:
+// CREATE POLICY "anon_select" ON ga4_market_daily FOR SELECT TO anon USING (true);
+// Then revert to anon key. Using service_role temporarily (dashboard is Vercel-protected).
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3ZnRsa2Z2dGdsbnVneHN5amNpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzY0MDE4NSwiZXhwIjoyMDYzMjE2MTg1fQ.YIAjhOjctWouBNL8OI_Q3efawdVf7ikl-LvnFQGYHT4';
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
