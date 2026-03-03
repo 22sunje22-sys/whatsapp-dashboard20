@@ -104,7 +104,7 @@ def upsert_supabase(date_str: str, data: dict):
         "apikey": SUPABASE_SERVICE_KEY,
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates",
+        "Prefer": "resolution=merge-duplicates,return=minimal",
     }
     rows = []
     for (currency, category), vals in data.items():
@@ -121,7 +121,7 @@ def upsert_supabase(date_str: str, data: dict):
         return
 
     resp = requests.post(
-        f"{SUPABASE_URL}/rest/v1/ga4_market_daily",
+        f"{SUPABASE_URL}/rest/v1/ga4_market_daily?on_conflict=report_date,currency,category",
         headers=headers,
         json=rows,
     )
