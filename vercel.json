@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/state_of_market.html",
+      "destination": "https://state-of-market.vercel.app",
+      "permanent": true
+    }
+  ]
+}
