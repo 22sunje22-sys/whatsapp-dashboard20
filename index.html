@@ -1920,6 +1920,13 @@
                 // Загружаем список сотрудников
                 await loadReps();
 
+                // Default to last 7 days
+                const today = new Date();
+                const weekAgo = new Date(today);
+                weekAgo.setDate(today.getDate() - 7);
+                document.getElementById('dateTo').value = today.toISOString().split('T')[0];
+                document.getElementById('dateFrom').value = weekAgo.toISOString().split('T')[0];
+
                 // Применяем фильтры и показываем
                 refresh();
 
