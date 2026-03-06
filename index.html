@@ -1365,13 +1365,13 @@
                 previousPeriodData.forEach(d => {
                     if (d.account_email) {
                         const key = d.account_email;
-                        if (!prevTeamMap[key]) prevTeamMap[key] = { name: TEAM_DISPLAY_NAMES[d.account_email] || d.account_full_name || d.account_email.split('@')[0], sent: 0, received: 0, chats: new Set() };
+                        if (!prevTeamMap[key]) prevTeamMap[key] = { name: TEAM_DISPLAY_NAMES[d.account_email] || d.account_full_name || d.account_email.split('@')[0], email: d.account_email, sent: 0, received: 0, chats: new Set() };
                         if (d.message_direction === 'sent') {
                             prevTeamMap[key].sent++;
-                            if (d.chat_id) prevTeamMap[key].chats.add(d.chat_id);
                         } else if (d.message_direction === 'received') {
                             prevTeamMap[key].received++;
                         }
+                        if (d.chat_id) prevTeamMap[key].chats.add(d.chat_id);
                     } else if (d.sender_phone || d.sender_full_name) {
                         const empName = matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
                         if (empName) {
@@ -1408,7 +1408,7 @@
                 });
                 [...Object.values(prevTeamMap), ...Object.values(prevNcMap)].forEach(p => {
                     const times = prevRespByRep[p.name] || [];
-                    prevStatsMap[p.name] = {
+                    prevStatsMap[p.email || p.name] = {
                         sent: p.sent,
                         received: p.received,
                         convos: p.chats.size,
@@ -1445,7 +1445,7 @@
                 const avgResponseText = avgResponse !== null ? formatMinutes(avgResponse, true) : '-';
                 const responseClass = avgResponse !== null && avgResponse < 15 ? 'good' : '';
                 const roleBadge = t.role !== '-' ? `<span class="role-badge role-${t.role.toLowerCase()}">${t.role}</span>` : '-';
-                const prev = prevStatsMap[t.name];
+                const prev = prevStatsMap[t.email || t.name];
                 const sentDelta = prev ? formatDelta(t.sent, prev.sent) : null;
                 const receivedDelta = prev ? formatDelta(t.received, prev.received) : null;
                 const convosDelta = prev ? formatDelta(t.chats.size, prev.convos) : null;
