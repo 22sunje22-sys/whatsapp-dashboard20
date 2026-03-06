@@ -1356,7 +1356,7 @@
                 const prevNcMap = {};
                 const prevRespByRep = {};
                 previousPeriodData.forEach(d => {
-                    if (d.message_direction !== 'outgoing') return;
+                    if (d.message_direction !== 'sent') return;
                     if (d.account_email) {
                         const key = d.account_email;
                         if (!prevTeamMap[key]) prevTeamMap[key] = { name: d.account_full_name || d.account_email.split('@')[0], sent: 0, chats: new Set() };
@@ -1377,9 +1377,9 @@
                 const prevChatLast = {};
                 sortedPrev.forEach(d => {
                     if (!d.chat_id || !d.message_timestamp) return;
-                    if (d.message_direction === 'incoming') {
+                    if (d.message_direction === 'received') {
                         prevChatLast[d.chat_id] = { time: new Date(d.message_timestamp), type: 'incoming' };
-                    } else if (d.message_direction === 'outgoing' && prevChatLast[d.chat_id]?.type === 'incoming') {
+                    } else if (d.message_direction === 'sent' && prevChatLast[d.chat_id]?.type === 'incoming') {
                         const rep = d.account_full_name || (d.account_email ? d.account_email.split('@')[0] : null) || matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
                         if (rep) {
                             const diff = (new Date(d.message_timestamp) - prevChatLast[d.chat_id].time) / 60000;
