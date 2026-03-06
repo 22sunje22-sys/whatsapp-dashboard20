@@ -844,6 +844,11 @@
             'arif@platinumlist.net': 'Ticketing'
         };
 
+        // Display name overrides for connected accounts (e.g. listener-only accounts)
+        const TEAM_DISPLAY_NAMES = {
+            'arif@platinumlist.net': 'Ticketing ear'
+        };
+
         // Names to exclude from contractor/contact lists (all internal employees)
         const EXCLUDED_NAMES = [
             // Sales managers (connected accounts)
@@ -891,6 +896,7 @@
             'Najm PL': { patterns: ['najm pl', 'najm'], role: 'Sales' },
             'Sulaiman PL': { patterns: ['sulaiman pl', 'sulaiman'], phones: ['+971554341993'], role: 'Sales' },
             'Eman Platinumlist': { patterns: ['eman platinumlist', 'eman'], phones: ['+201143180562'], role: 'Ticketing' },
+            'Mohammed Arif': { patterns: ['mohammed arif (2)', 'mohammed arif', 'arif'], phones: ['+971507716261'], role: 'Ticketing' },
         };
 
         // Match a sender name/phone to a non-connected employee
@@ -1046,7 +1052,8 @@
                             responseTimes.push(diffMinutes);
 
                             // By rep
-                            const rep = curr.account_full_name || curr.account_email?.split('@')[0] || 'Unknown';
+                            const repRaw = curr.account_full_name || curr.account_email?.split('@')[0] || 'Unknown';
+                            const rep = (curr.account_email && TEAM_DISPLAY_NAMES[curr.account_email]) || repRaw;
                             if (!responseTimesByRep[rep]) responseTimesByRep[rep] = [];
                             responseTimesByRep[rep].push(diffMinutes);
 
@@ -1144,7 +1151,7 @@
                 if (data && data.length > 0) {
                     data.forEach(d => {
                         if (d.account_email && !unique[d.account_email]) {
-                            unique[d.account_email] = d.account_full_name || d.account_email.split('@')[0];
+                            unique[d.account_email] = TEAM_DISPLAY_NAMES[d.account_email] || d.account_full_name || d.account_email.split('@')[0];
                         }
                     });
                     offset += pageSize;
@@ -1300,7 +1307,7 @@
             teamData.forEach(d => {
                 if (!d.account_email) return;
                 if (!teamMap[d.account_email]) teamMap[d.account_email] = {
-                    name: d.account_full_name || d.account_email.split('@')[0],
+                    name: TEAM_DISPLAY_NAMES[d.account_email] || d.account_full_name || d.account_email.split('@')[0],
                     email: d.account_email,
                     role: TEAM_ROLES[d.account_email] || '-',
                     sent: 0,
@@ -1335,7 +1342,7 @@
                     groupMsgs: 0,
                     dmMsgs: 0,
                     chats: new Set(),
-                    via: d.account_full_name || (d.account_email ? d.account_email.split('@')[0] : 'unknown')
+                    via: (d.account_email && TEAM_DISPLAY_NAMES[d.account_email]) || d.account_full_name || (d.account_email ? d.account_email.split('@')[0] : 'unknown')
                 };
                 ncMap[key].sent++; // from their perspective they sent this
                 if (d.is_group) {
@@ -1358,7 +1365,7 @@
                 previousPeriodData.forEach(d => {
                     if (d.account_email) {
                         const key = d.account_email;
-                        if (!prevTeamMap[key]) prevTeamMap[key] = { name: d.account_full_name || d.account_email.split('@')[0], sent: 0, received: 0, chats: new Set() };
+                        if (!prevTeamMap[key]) prevTeamMap[key] = { name: TEAM_DISPLAY_NAMES[d.account_email] || d.account_full_name || d.account_email.split('@')[0], sent: 0, received: 0, chats: new Set() };
                         if (d.message_direction === 'sent') {
                             prevTeamMap[key].sent++;
                             if (d.chat_id) prevTeamMap[key].chats.add(d.chat_id);
@@ -1387,7 +1394,8 @@
                     if (d.message_direction === 'received') {
                         prevChatLast[d.chat_id] = { time: new Date(d.message_timestamp), type: 'incoming' };
                     } else if (d.message_direction === 'sent' && prevChatLast[d.chat_id]?.type === 'incoming') {
-                        const rep = d.account_full_name || (d.account_email ? d.account_email.split('@')[0] : null) || matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
+                        const repRaw = d.account_full_name || (d.account_email ? d.account_email.split('@')[0] : null) || matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
+                        const rep = (d.account_email && TEAM_DISPLAY_NAMES[d.account_email]) || repRaw;
                         if (rep) {
                             const diff = (new Date(d.message_timestamp) - prevChatLast[d.chat_id].time) / 60000;
                             if (diff >= 0 && diff < 1440) {
@@ -1590,8 +1598,9 @@
                 d.message_direction === 'sent' ? groupMap[chatId].sent++ : groupMap[chatId].received++;
 
                 // Track team members who participate in this chat (only from our team)
-                if (d.account_full_name && TEAM_EMAILS.includes(d.account_email)) {
-                    groupMap[chatId].teamMembers.add(d.account_full_name.split(' ')[0]); // First name only
+                if (TEAM_EMAILS.includes(d.account_email)) {
+                    const memberName = TEAM_DISPLAY_NAMES[d.account_email] || d.account_full_name;
+                    if (memberName) groupMap[chatId].teamMembers.add(memberName.split(' ')[0]); // First name only
                 }
             });
 
