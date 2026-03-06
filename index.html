@@ -649,7 +649,15 @@
                 </div>
 
                 <div class="team-box">
-                    <div class="team-title">🏆 Team Performance</div>
+                    <div class="team-title" style="display:flex;align-items:center;justify-content:space-between;">
+                        <span>🏆 Team Performance</span>
+                        <select id="team-role-filter" onchange="applyTeamRoleFilter()" style="background:rgba(121,226,255,0.08);border:1px solid rgba(121,226,255,0.2);color:#ccc;font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;">
+                            <option value="">All Roles</option>
+                            <option value="Management">Management</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Ticketing">Ticketing</option>
+                        </select>
+                    </div>
                     <table class="team-table">
                         <thead>
                             <tr><th>Name</th><th>Role</th><th>Messages</th><th>Sent</th><th>Received</th><th>Groups</th><th>DMs</th><th>Convos</th><th>Depth</th><th>Avg Response</th><th>Source</th></tr>
@@ -858,6 +866,10 @@
             'Ash', 'Stephanie',
             'Tanmay PL', 'Tanmay',
             'Rimah Aljafari Platinumlist Events', 'Rimah',
+            'Najm PL', 'Najm',
+            'Sulaiman PL', 'Sulaiman',
+            'Eman Platinumlist', 'Eman',
+            'Ilya PL', 'Ilya',
         ];
 
         // Non-connected employees (no TimelinesAI account, but appear as senders)
@@ -867,19 +879,28 @@
             'Taha Gulbadan': { patterns: ['taha gulbadan', 'taha - platinumlist', 'taha'], role: 'Ticketing' },
             'Toufiq Rahman': { patterns: ['toufiq rahman', 'toufiiq (3)', 'toufiiq', 'toufiq platinumlist', 'toufiq'], role: 'Ticketing' },
             'Ahmed Hussain': { patterns: ['ahmed hussain', 'ahmed pl', 'ahmed chango'], role: 'Ticketing' },
-            'Asmaa Hussein': { patterns: ['asmaa hussein', 'asmaa'], role: 'Ticketing' },
+            'Asmaa Hussein': { patterns: ['asmaa hussein', 'asmaa hussain', 'asmaa'], role: 'Ticketing' },
             'Ash': { patterns: ['ash'], role: 'Ticketing' },
             'Sabeq': { patterns: ['sabeq'], role: 'Ticketing' },
             'Akshay Darde': { patterns: ['akshay darde', 'akshay'], role: 'Ticketing' },
             'Ali Al Bukhari': { patterns: ['ali al bukhari'], role: 'Ticketing' },
             'Aleksei Duranichev': { patterns: ['aleksei duranichev', 'alexei p l p events', 'aleksei', 'alexei'], role: 'Ticketing' },
             'Stephen': { patterns: ['stephen', 'stephen (1)', 'stephen (2)', 'stephen (4)', 'stephen new'], role: 'Ticketing' },
-            'Tanmay PL': { patterns: ['tanmay pl', 'tanmay'], role: 'Ticketing' },
+            'Tanmay PL': { patterns: ['tanmay pl', 'tanmay'], phones: [], role: 'Ticketing' },
             'Rimah Aljafari': { patterns: ['rimah aljafari platinumlist events', 'rimah'], role: 'Ticketing' },
+            'Najm PL': { patterns: ['najm pl', 'najm'], role: 'Sales' },
+            'Sulaiman PL': { patterns: ['sulaiman pl', 'sulaiman'], phones: ['+971554341993'], role: 'Sales' },
+            'Eman Platinumlist': { patterns: ['eman platinumlist', 'eman'], phones: ['+201143180562'], role: 'Ticketing' },
         };
 
-        // Match a sender name to a non-connected employee
-        function matchNonConnectedEmployee(senderName) {
+        // Match a sender name/phone to a non-connected employee
+        function matchNonConnectedEmployee(senderName, senderPhone) {
+            // Phone-first: stable across different contact name variants
+            if (senderPhone) {
+                for (const [displayName, config] of Object.entries(NON_CONNECTED_EMPLOYEES)) {
+                    if (config.phones && config.phones.includes(senderPhone)) return displayName;
+                }
+            }
             if (!senderName) return null;
             const lower = senderName.toLowerCase();
             for (const [displayName, config] of Object.entries(NON_CONNECTED_EMPLOYEES)) {
@@ -1302,7 +1323,7 @@
             const ncMap = {};
             teamData.forEach(d => {
                 if (d.message_direction !== 'received') return;
-                const employeeName = matchNonConnectedEmployee(d.sender_full_name);
+                const employeeName = matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
                 if (!employeeName) return;
                 const key = 'nc_' + employeeName;
                 if (!ncMap[key]) ncMap[key] = {
@@ -1328,6 +1349,62 @@
             const team = [...Object.values(teamMap), ...Object.values(ncMap)]
                 .sort((a,b) => (b.sent + b.received) - (a.sent + a.received));
 
+            // Build previous period stats map (keyed by name)
+            const prevStatsMap = {};
+            if (previousPeriodData && previousPeriodData.length > 0) {
+                const prevTeamMap = {};
+                const prevNcMap = {};
+                const prevRespByRep = {};
+                previousPeriodData.forEach(d => {
+                    if (d.message_direction !== 'outgoing') return;
+                    if (d.account_email) {
+                        const key = d.account_email;
+                        if (!prevTeamMap[key]) prevTeamMap[key] = { name: d.account_full_name || d.account_email.split('@')[0], sent: 0, chats: new Set() };
+                        prevTeamMap[key].sent++;
+                        if (d.chat_id) prevTeamMap[key].chats.add(d.chat_id);
+                    } else if (d.sender_phone || d.sender_full_name) {
+                        const empName = matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
+                        if (empName) {
+                            const key = 'nc_' + empName;
+                            if (!prevNcMap[key]) prevNcMap[key] = { name: empName, sent: 0, chats: new Set() };
+                            prevNcMap[key].sent++;
+                            if (d.chat_id) prevNcMap[key].chats.add(d.chat_id);
+                        }
+                    }
+                });
+                // Compute prev response times
+                const sortedPrev = [...previousPeriodData].sort((a,b) => new Date(a.message_timestamp) - new Date(b.message_timestamp));
+                const prevChatLast = {};
+                sortedPrev.forEach(d => {
+                    if (!d.chat_id || !d.message_timestamp) return;
+                    if (d.message_direction === 'incoming') {
+                        prevChatLast[d.chat_id] = { time: new Date(d.message_timestamp), type: 'incoming' };
+                    } else if (d.message_direction === 'outgoing' && prevChatLast[d.chat_id]?.type === 'incoming') {
+                        const rep = d.account_full_name || (d.account_email ? d.account_email.split('@')[0] : null) || matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
+                        if (rep) {
+                            const diff = (new Date(d.message_timestamp) - prevChatLast[d.chat_id].time) / 60000;
+                            if (diff >= 0 && diff < 1440) {
+                                if (!prevRespByRep[rep]) prevRespByRep[rep] = [];
+                                prevRespByRep[rep].push(diff);
+                            }
+                        }
+                        prevChatLast[d.chat_id] = { time: new Date(d.message_timestamp), type: 'outgoing' };
+                    }
+                });
+                [...Object.values(prevTeamMap), ...Object.values(prevNcMap)].forEach(p => {
+                    const times = prevRespByRep[p.name] || [];
+                    prevStatsMap[p.name] = {
+                        sent: p.sent,
+                        convos: p.chats.size,
+                        avgResponse: times.length > 0 ? times.reduce((a,b) => a+b,0) / times.length : null
+                    };
+                });
+            }
+
+            window._lastTeam = team;
+            window._lastPrevStatsMap = prevStatsMap;
+            window._lastRespByRep = responseTimesByRep;
+
             if (charts.team) charts.team.destroy();
             charts.team = new Chart(document.getElementById('chart-team'), {
                 type: 'doughnut',
@@ -1338,29 +1415,48 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
             });
 
-            document.getElementById('team-tbody').innerHTML = team.map(t => {
+            renderTeamTable(team, prevStatsMap, responseTimesByRep);
+        }
+
+        function renderTeamTable(teamArr, prevStatsMap, respByRep) {
+            prevStatsMap = prevStatsMap || window._lastPrevStatsMap || {};
+            respByRep = respByRep || window._lastRespByRep || {};
+            document.getElementById('team-tbody').innerHTML = teamArr.map(t => {
                 const total = t.sent + t.received;
                 const depth = (total / (t.chats.size || 1)).toFixed(1);
-                // Get average response time for this team member
-                const repTimes = responseTimesByRep[t.name] || [];
+                const repTimes = respByRep[t.name] || [];
                 const avgResponse = repTimes.length > 0 ? repTimes.reduce((a,b) => a+b, 0) / repTimes.length : null;
                 const avgResponseText = avgResponse !== null ? formatMinutes(avgResponse, true) : '-';
                 const responseClass = avgResponse !== null && avgResponse < 15 ? 'good' : '';
                 const roleBadge = t.role !== '-' ? `<span class="role-badge role-${t.role.toLowerCase()}">${t.role}</span>` : '-';
+                const prev = prevStatsMap[t.name];
+                const sentDelta = prev ? formatDelta(t.sent, prev.sent) : null;
+                const convosDelta = prev ? formatDelta(t.chats.size, prev.convos) : null;
+                const respDelta = (prev && avgResponse !== null && prev.avgResponse !== null) ? formatDelta(avgResponse, prev.avgResponse, true) : null;
+                const sentHtml = sentDelta ? `<br><span class="delta ${sentDelta.class}" style="font-size:9px">${sentDelta.text}</span>` : '';
+                const convosHtml = convosDelta ? `<br><span class="delta ${convosDelta.class}" style="font-size:9px">${convosDelta.text}</span>` : '';
+                const respHtml = respDelta ? `<br><span class="delta ${respDelta.class}" style="font-size:9px">${respDelta.text}</span>` : '';
                 return `<tr>
                     <td class="name">${t.name}</td>
                     <td>${roleBadge}</td>
                     <td>${fmt(total)}</td>
-                    <td>${fmt(t.sent)}</td>
+                    <td>${fmt(t.sent)}${sentHtml}</td>
                     <td>${t.received === 0 ? '-' : fmt(t.received)}</td>
                     <td>${fmt(t.groupMsgs)}</td>
                     <td>${fmt(t.dmMsgs)}</td>
-                    <td>${t.chats.size}</td>
+                    <td>${t.chats.size}${convosHtml}</td>
                     <td class="${depth >= 15 ? 'good' : ''}">${depth}</td>
-                    <td class="${responseClass}">${avgResponseText}</td>
+                    <td class="${responseClass}">${avgResponseText}${respHtml}</td>
                     <td>${t.source || 'Via ' + t.via}</td>
                 </tr>`;
             }).join('');
+        }
+
+        function applyTeamRoleFilter() {
+            const role = document.getElementById('team-role-filter').value;
+            const all = window._lastTeam || [];
+            const filtered = role ? all.filter(t => t.role === role) : all;
+            renderTeamTable(filtered);
         }
 
         function updateLoad(data) {
