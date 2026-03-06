@@ -849,21 +849,26 @@
             'Daria', 'daria', 'DARIA', 'Daria (2)', 'Darya', 'darya', 'DARYA', 'Дарья', 'дарья',
             // Ticketing managers (not connected but appear in chats/groups)
             'Taha Gulbadan', 'Taha - Platinumlist', 'Taha',
-            'Toufiq Rahman', 'Toufiiq', 'Toufiq Platinumlist', 'Toufiq',
+            'Toufiq Rahman', 'Toufiiq', 'Toufiiq (3)', 'Toufiq Platinumlist', 'Toufiq',
             'Ahmed Hussain', 'Ahmed PL', 'Ahmed Chango', 'Ahmed',
             'Asmaa Hussein', 'Asmaa Hussein (1)', 'Asmaa',
             'Sabeq', 'Akshay Darde', 'Akshay',
             'Ali Al Bukhari', 'Ali',
             'Aleksei Duranichev', 'Alexei P L P EVENTS LLC', 'Aleksei', 'Alexei',
             'Ash', 'Stephanie',
+            'Tanmay PL', 'Tanmay',
+            'Baz',
+            'Jayan Thomas Mathew', 'Jayan',
+            'Shaz',
+            'Rimah Aljafari Platinumlist Events', 'Rimah',
         ];
 
         // Non-connected employees (no TimelinesAI account, but appear as senders)
         // Key = display name, value = { patterns: [lowercase match strings], role: string }
         const NON_CONNECTED_EMPLOYEES = {
-            'Cosmin Ivan': { patterns: ['cosmin ivan', 'cosmin'], role: 'Management' },
+            'Cosmin Ivan': { patterns: ['cosmin ivan (1)', 'cosmin ivan (2)', 'cosmin office', 'cosmin ivan', 'cosmin'], role: 'Management' },
             'Taha Gulbadan': { patterns: ['taha gulbadan', 'taha - platinumlist', 'taha'], role: 'Ticketing' },
-            'Toufiq Rahman': { patterns: ['toufiq rahman', 'toufiiq', 'toufiq platinumlist', 'toufiq'], role: 'Ticketing' },
+            'Toufiq Rahman': { patterns: ['toufiq rahman', 'toufiiq (3)', 'toufiiq', 'toufiq platinumlist', 'toufiq'], role: 'Ticketing' },
             'Ahmed Hussain': { patterns: ['ahmed hussain', 'ahmed pl', 'ahmed chango'], role: 'Ticketing' },
             'Asmaa Hussein': { patterns: ['asmaa hussein', 'asmaa'], role: 'Ticketing' },
             'Ash': { patterns: ['ash'], role: 'Ticketing' },
@@ -872,6 +877,11 @@
             'Ali Al Bukhari': { patterns: ['ali al bukhari'], role: 'Ticketing' },
             'Aleksei Duranichev': { patterns: ['aleksei duranichev', 'alexei p l p events', 'aleksei', 'alexei'], role: 'Ticketing' },
             'Stephen': { patterns: ['stephen', 'stephen (1)', 'stephen (2)', 'stephen (4)', 'stephen new'], role: 'Ticketing' },
+            'Tanmay PL': { patterns: ['tanmay pl', 'tanmay'], role: 'Ticketing' },
+            'Baz': { patterns: ['baz'], role: 'Ticketing' },
+            'Jayan Thomas Mathew': { patterns: ['jayan thomas mathew', 'jayan'], role: 'Ticketing' },
+            'Shaz': { patterns: ['shaz'], role: 'Ticketing' },
+            'Rimah Aljafari': { patterns: ['rimah aljafari platinumlist events', 'rimah'], role: 'Ticketing' },
         };
 
         // Match a sender name to a non-connected employee
