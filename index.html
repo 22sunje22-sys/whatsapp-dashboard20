@@ -1356,19 +1356,26 @@
                 const prevNcMap = {};
                 const prevRespByRep = {};
                 previousPeriodData.forEach(d => {
-                    if (d.message_direction !== 'sent') return;
                     if (d.account_email) {
                         const key = d.account_email;
-                        if (!prevTeamMap[key]) prevTeamMap[key] = { name: d.account_full_name || d.account_email.split('@')[0], sent: 0, chats: new Set() };
-                        prevTeamMap[key].sent++;
-                        if (d.chat_id) prevTeamMap[key].chats.add(d.chat_id);
+                        if (!prevTeamMap[key]) prevTeamMap[key] = { name: d.account_full_name || d.account_email.split('@')[0], sent: 0, received: 0, chats: new Set() };
+                        if (d.message_direction === 'sent') {
+                            prevTeamMap[key].sent++;
+                            if (d.chat_id) prevTeamMap[key].chats.add(d.chat_id);
+                        } else if (d.message_direction === 'received') {
+                            prevTeamMap[key].received++;
+                        }
                     } else if (d.sender_phone || d.sender_full_name) {
                         const empName = matchNonConnectedEmployee(d.sender_full_name, d.sender_phone);
                         if (empName) {
                             const key = 'nc_' + empName;
-                            if (!prevNcMap[key]) prevNcMap[key] = { name: empName, sent: 0, chats: new Set() };
-                            prevNcMap[key].sent++;
-                            if (d.chat_id) prevNcMap[key].chats.add(d.chat_id);
+                            if (!prevNcMap[key]) prevNcMap[key] = { name: empName, sent: 0, received: 0, chats: new Set() };
+                            if (d.message_direction === 'sent') {
+                                prevNcMap[key].sent++;
+                                if (d.chat_id) prevNcMap[key].chats.add(d.chat_id);
+                            } else if (d.message_direction === 'received') {
+                                prevNcMap[key].received++;
+                            }
                         }
                     }
                 });
@@ -1395,6 +1402,7 @@
                     const times = prevRespByRep[p.name] || [];
                     prevStatsMap[p.name] = {
                         sent: p.sent,
+                        received: p.received,
                         convos: p.chats.size,
                         avgResponse: times.length > 0 ? times.reduce((a,b) => a+b,0) / times.length : null
                     };
@@ -1431,9 +1439,11 @@
                 const roleBadge = t.role !== '-' ? `<span class="role-badge role-${t.role.toLowerCase()}">${t.role}</span>` : '-';
                 const prev = prevStatsMap[t.name];
                 const sentDelta = prev ? formatDelta(t.sent, prev.sent) : null;
+                const receivedDelta = prev ? formatDelta(t.received, prev.received) : null;
                 const convosDelta = prev ? formatDelta(t.chats.size, prev.convos) : null;
                 const respDelta = (prev && avgResponse !== null && prev.avgResponse !== null) ? formatDelta(avgResponse, prev.avgResponse, true) : null;
                 const sentHtml = sentDelta ? `<br><span class="delta ${sentDelta.class}" style="font-size:9px">${sentDelta.text}</span>` : '';
+                const receivedHtml = receivedDelta ? `<br><span class="delta ${receivedDelta.class}" style="font-size:9px">${receivedDelta.text}</span>` : '';
                 const convosHtml = convosDelta ? `<br><span class="delta ${convosDelta.class}" style="font-size:9px">${convosDelta.text}</span>` : '';
                 const respHtml = respDelta ? `<br><span class="delta ${respDelta.class}" style="font-size:9px">${respDelta.text}</span>` : '';
                 return `<tr>
@@ -1441,7 +1451,7 @@
                     <td>${roleBadge}</td>
                     <td>${fmt(total)}</td>
                     <td>${fmt(t.sent)}${sentHtml}</td>
-                    <td>${t.received === 0 ? '-' : fmt(t.received)}</td>
+                    <td>${t.received === 0 ? '-' : fmt(t.received)}${receivedHtml}</td>
                     <td>${fmt(t.groupMsgs)}</td>
                     <td>${fmt(t.dmMsgs)}</td>
                     <td>${t.chats.size}${convosHtml}</td>
