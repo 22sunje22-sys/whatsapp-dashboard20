@@ -1289,7 +1289,7 @@
                     chats: new Set()
                 };
                 d.message_direction === 'sent' ? teamMap[d.account_email].sent++ : teamMap[d.account_email].received++;
-                if (d.is_group === true) {
+                if (d.is_group == true) {
                     teamMap[d.account_email].groupMsgs++;
                 } else {
                     teamMap[d.account_email].dmMsgs++;
@@ -1315,7 +1315,7 @@
                     chats: new Set()
                 };
                 ncMap[key].sent++; // from their perspective they sent this
-                if (d.is_group === true) {
+                if (d.is_group == true) {
                     ncMap[key].groupMsgs++;
                 } else {
                     ncMap[key].dmMsgs++;
@@ -1350,7 +1350,7 @@
                     <td>${roleBadge}</td>
                     <td>${fmt(total)}</td>
                     <td>${fmt(t.sent)}</td>
-                    <td>${fmt(t.received)}</td>
+                    <td>${t.received === 0 ? '-' : fmt(t.received)}</td>
                     <td>${fmt(t.groupMsgs)}</td>
                     <td>${fmt(t.dmMsgs)}</td>
                     <td>${t.chats.size}</td>
