@@ -652,7 +652,7 @@
                     <div class="team-title">🏆 Team Performance</div>
                     <table class="team-table">
                         <thead>
-                            <tr><th>Name</th><th>Role</th><th>Messages</th><th>Sent</th><th>Received</th><th>Groups</th><th>DMs</th><th>Convos</th><th>Depth</th><th>Avg Response</th></tr>
+                            <tr><th>Name</th><th>Role</th><th>Messages</th><th>Sent</th><th>Received</th><th>Groups</th><th>DMs</th><th>Convos</th><th>Depth</th><th>Avg Response</th><th>Source</th></tr>
                         </thead>
                         <tbody id="team-tbody"></tbody>
                     </table>
@@ -1089,7 +1089,7 @@
 
         // Check if chat is a group - use is_group field from database
         function isGroup(record) {
-            return record && record.is_group === true;
+            return record && record.is_group;
         }
 
         // TABS
@@ -1286,10 +1286,11 @@
                     received: 0,
                     groupMsgs: 0,
                     dmMsgs: 0,
-                    chats: new Set()
+                    chats: new Set(),
+                    source: 'First party'
                 };
                 d.message_direction === 'sent' ? teamMap[d.account_email].sent++ : teamMap[d.account_email].received++;
-                if (d.is_group == true) {
+                if (d.is_group) {
                     teamMap[d.account_email].groupMsgs++;
                 } else {
                     teamMap[d.account_email].dmMsgs++;
@@ -1312,10 +1313,11 @@
                     received: 0,
                     groupMsgs: 0,
                     dmMsgs: 0,
-                    chats: new Set()
+                    chats: new Set(),
+                    via: d.account_full_name || (d.account_email ? d.account_email.split('@')[0] : 'unknown')
                 };
                 ncMap[key].sent++; // from their perspective they sent this
-                if (d.is_group == true) {
+                if (d.is_group) {
                     ncMap[key].groupMsgs++;
                 } else {
                     ncMap[key].dmMsgs++;
@@ -1356,6 +1358,7 @@
                     <td>${t.chats.size}</td>
                     <td class="${depth >= 15 ? 'good' : ''}">${depth}</td>
                     <td class="${responseClass}">${avgResponseText}</td>
+                    <td>${t.source || 'Via ' + t.via}</td>
                 </tr>`;
             }).join('');
         }
