@@ -1377,11 +1377,9 @@
                         if (empName) {
                             const key = 'nc_' + empName;
                             if (!prevNcMap[key]) prevNcMap[key] = { name: empName, sent: 0, received: 0, chats: new Set() };
-                            if (d.message_direction === 'sent') {
+                            if (d.message_direction === 'received') {
                                 prevNcMap[key].sent++;
                                 if (d.chat_id) prevNcMap[key].chats.add(d.chat_id);
-                            } else if (d.message_direction === 'received') {
-                                prevNcMap[key].received++;
                             }
                         }
                     }
