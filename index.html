@@ -1279,8 +1279,8 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { stacked: true, beginAtZero: true }, x: { stacked: true } } }
             });
 
-            // Team Performance - ALWAYS use ALL data (rawData) to show all employees
-            // Apply only date and rep filters, NOT groups filter
+            // Team Performance — apply same filters as previousPeriodData for like-for-like comparison
+            // (date, rep, and groupsOnlyMode all applied consistently)
             const dateFrom = document.getElementById('dateFrom').value;
             const dateTo = document.getElementById('dateTo').value;
             const rep = document.getElementById('repFilter').value;
@@ -1297,7 +1297,10 @@
             if (rep) {
                 teamData = teamData.filter(d => d.account_email === rep);
             }
-            // NOTE: Groups filter is NOT applied here - we want ALL employees
+            // Apply groups filter consistently so current & previous period compare like-for-like
+            if (groupsOnlyMode) {
+                teamData = teamData.filter(d => isGroup(d));
+            }
 
             // Calculate response times for team data
             const { responseTimesByRep } = calculateResponseTimes(teamData);
